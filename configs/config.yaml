@@ -3,8 +3,8 @@
 # specify here default training configuration
 defaults:
   - trainer: minimal.yaml
-  - model: mnist_model.yaml
-  - datamodule: mnist_datamodule.yaml
+  - model: instance_segmentation_model.yaml
+  - datamodule: scannet_datamodule.yaml
   - callbacks: default.yaml # set this to null if you don't want to use callbacks
   - logger: null # set logger here or use command line (e.g. `python run.py logger=wandb`)
 

@@ -423,8 +423,8 @@ It also specifies everything that shouldn't be managed by experiment configurati
 # specify here default training configuration
 defaults:
     - trainer: minimal.yaml
-    - model: mnist_model.yaml
-    - datamodule: mnist_datamodule.yaml
+    - model: instance_segmentation_model.yaml
+    - datamodule: scannet_datamodule.yaml
     - callbacks: default.yaml  # set this to null if you don't want to use callbacks
     - logger: null  # set logger here or use command line (e.g. `python run.py logger=wandb`)
 
@@ -470,8 +470,8 @@ Experiment configurations allow you to overwrite parameters from main project co
 
 defaults:
     - override /trainer: minimal.yaml
-    - override /model: mnist_model.yaml
-    - override /datamodule: mnist_datamodule.yaml
+    - override /model: instance_segmentation_model.yaml
+    - override /datamodule: scannet_datamodule.yaml
     - override /callbacks: default.yaml
     - override /logger: null
 

@@ -1,0 +1,7 @@
+_target_: src.datamodules.mnist_datamodule.ScannetDataModule
+
+data_dir: "/scannet/scans"
+#data_dir: ${data_dir} # data_dir is specified in config.yaml
+batch_size: 2
+num_workers: 0
+pin_memory: False

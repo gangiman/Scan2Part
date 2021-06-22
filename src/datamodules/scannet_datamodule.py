@@ -1,9 +1,16 @@
 from typing import Optional, Tuple
 
+import MinkowskiEngine as ME
+from MinkowskiEngine.utils import batch_sparse_collate
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, random_split
 from torchvision.datasets import MNIST
 from torchvision.transforms import transforms
+
+
+def custom_sparse_collate(*args, **kwargs):
+    batch_coords, batch_features, batch_labels = batch_sparse_collate(*args, **kwargs)
+    return ME.SparseTensor(batch_features, coordinates=batch_coords, device=batch_features.device), batch_labels
 
 
 class ScannetDataModule(LightningDataModule):
@@ -45,12 +52,8 @@ class ScannetDataModule(LightningDataModule):
             [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
         )
 
-        # self.dims is returned when you call datamodule.size()
-        self.dims = (1, 28, 28)
-
         self.data_train: Optional[Dataset] = None
         self.data_val: Optional[Dataset] = None
-        self.data_test: Optional[Dataset] = None
 
     @property
     def num_classes(self) -> int:
@@ -59,11 +62,14 @@ class ScannetDataModule(LightningDataModule):
     def prepare_data(self):
         """Download data if needed. This method is called only from a single GPU.
         Do not use it to assign state (self.x = y)."""
-        MNIST(self.data_dir, train=True, download=True)
-        MNIST(self.data_dir, train=False, download=True)
+        pass
 
     def setup(self, stage: Optional[str] = None):
         """Load data. Set variables: self.data_train, self.data_val, self.data_test."""
+
+        self.train_dataset, self.val_dataset = generate_train_and_val_datasets(**merged_kwargs)
+
+
         trainset = MNIST(self.data_dir, train=True, transform=self.transforms)
         testset = MNIST(self.data_dir, train=False, transform=self.transforms)
         dataset = ConcatDataset(datasets=[trainset, testset])
@@ -77,7 +83,9 @@ class ScannetDataModule(LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
+            collate_fn=custom_sparse_collate,
             shuffle=True,
+            drop_last=True
         )
 
     def val_dataloader(self):
@@ -86,14 +94,6 @@ class ScannetDataModule(LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
-            shuffle=False,
-        )
-
-    def test_dataloader(self):
-        return DataLoader(
-            dataset=self.data_test,
-            batch_size=self.batch_size,
-            num_workers=self.num_workers,
-            pin_memory=self.pin_memory,
+            collate_fn=custom_sparse_collate,
             shuffle=False,
         )

@@ -5,8 +5,8 @@
 
 defaults:
   - override /trainer: minimal.yaml # choose trainer from 'configs/trainer/'
-  - override /model: mnist_model.yaml
-  - override /datamodule: mnist_datamodule.yaml
+  - override /model: instance_segmentation_model.yaml
+  - override /datamodule: scannet_datamodule.yaml
   - override /callbacks: default.yaml
   - override /logger: null
 

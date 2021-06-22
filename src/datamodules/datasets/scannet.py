@@ -6,17 +6,17 @@ from torchvision.transforms import Compose
 from torch.utils.data import Dataset, DataLoader
 from MinkowskiEngine.utils import batch_sparse_collate
 
-from datasets.transforms import ToTensor
-from datasets.transforms import MapInstancesToSemanticLabels
-from datasets.transforms import ComputeInstanceMasks
-from datasets.transforms import RandomCrop
-from datasets.transforms import RandomFlip
-from datasets.transforms import RandomRotate90
-from datasets.transforms import RandomRotate
-from datasets.transforms import ElasticDeformation
-from datasets.transforms import ToSparse
-from datasets.transforms import NormalizeInstanceLabels
-from datasets.transforms import GetInstanceMaskForLoD
+from src.datamodules.transforms import ToTensor
+from src.datamodules.transforms import MapInstancesToSemanticLabels
+from src.datamodules.transforms import ComputeInstanceMasks
+from src.datamodules.transforms import RandomCrop
+from src.datamodules.transforms import RandomFlip
+from src.datamodules.transforms import RandomRotate90
+from src.datamodules.transforms import RandomRotate
+from src.datamodules.transforms import ElasticDeformation
+from src.datamodules.transforms import ToSparse
+from src.datamodules.transforms import NormalizeInstanceLabels
+from src.datamodules.transforms import GetInstanceMaskForLoD
 
 
 def read_labels(path_to_file):

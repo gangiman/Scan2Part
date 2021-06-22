@@ -30,3 +30,12 @@ RUN conda init bash
 
 # Set myenv to default virtual environment
 RUN echo "source activate partseg" >> ~/.bashrc
+
+
+RUN conda install openblas-devel -c anaconda
+
+RUN pip install -U git+https://github.com/NVIDIA/MinkowskiEngine \
+    -v --no-deps \
+    --install-option="--blas_include_dirs=${CONDA_PREFIX}/include" \
+    --install-option="--blas=openblas"
+
