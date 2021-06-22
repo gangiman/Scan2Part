@@ -1,29 +1,27 @@
-from argparse import Namespace
 import pickle
 
 import torch
-from torch.utils.data import DataLoader
-from sklearn.cluster import MeanShift
-from datasets.scannet import generate_test_dataset
-from unet3d.lightning_model import Residual3DUnet
+from src.models.lightning_model import Residual3DUnet
 from unet3d.losses import DiscriminativeLoss
-from unet3d.metrics import EvaluateInstanceSegmentationPR
-from datasets.utils import stack_instance_dicts, slice_embedded
-from utils.prediction import to_cpu
-import MinkowskiEngine as ME
-from MinkowskiEngine.utils import sparse_collate
+
+# from datasets.utils import stack_instance_dicts, slice_embedded
+# from utils.prediction import to_cpu
 
 
-class InstanceSegmentationResidual3DUnet(Residual3DUnet):
-    def __init__(self, hparams, train_phase=True):
-        super().__init__(hparams)
-        if train_phase:
-            self.generate_train_and_val_datasets()
-            self.hparams.num_classes = self.train_dataset.num_classes
-            
-        push_away_background = self.hparams.__dict__.get('push_away_background', False)
-        self.loss = DiscriminativeLoss(self.hparams.delta_d, self.hparams.delta_v,
-                                       push_away_background=push_away_background)
+def slice_embedded(embedded, object_shape):
+    embedded_lst = []
+    start_slice = 0
+    for obj_shape in object_shape:
+        finish_slice = start_slice + obj_shape
+        embedded_lst.append(embedded[start_slice:finish_slice])
+        start_slice += obj_shape
+    return embedded_lst
+
+
+class InstanceSegmentation(Residual3DUnet):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.loss = DiscriminativeLoss(self.hparams.delta_d, self.hparams.delta_v)
 
     def forward(self, batch):
         features, instseg_dct = batch
@@ -32,21 +30,8 @@ class InstanceSegmentationResidual3DUnet(Residual3DUnet):
         embedded = self.model(features).F
         # print(embedded)
         embedded = slice_embedded(embedded, object_shape)
-
-        # print('\n###############')
-        # print('forward features shape:', features.shape)
-        # print('embedded len:', len(embedded))
-        # print('embedded[0] shape:', embedded[0].shape)
-        # print('masks len:', len(masks))
-        # print('masks[0] shape:', masks[0].shape)
-        # print('size[:10]:', size[:10])
-        # print('###############\n')
-
-        # embedded = embedded.permute(0, 2, 3, 4, 1)
-
         loss = self.loss(embedded, masks, size)
         return loss, embedded, masks
-        # return None, None, None
 
     def training_step(self, batch, batch_idx):
         loss, embedded, masks = self.forward(batch)
@@ -63,19 +48,6 @@ class InstanceSegmentationResidual3DUnet(Residual3DUnet):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         tensorboard_logs = {'val_loss': avg_loss,}
         return {'avg_val_loss': avg_loss, 'log': tensorboard_logs}
-
-
-
-
-class InstanceSegmentationResidual3DUnetForTesting(InstanceSegmentationResidual3DUnet):
-    def __init__(self, hparams):
-        if isinstance(hparams, dict):
-            hparams = Namespace(**hparams)
-        super().__init__(hparams, train_phase=False)
-        self.test_dataset = None
-        self.predictions = None
-        self.metrics = None
-        self.clustering_method = None
 
     def test_step(self, batch, batch_idx):
         embeddings = self.model(batch['input'])
@@ -111,16 +83,3 @@ class InstanceSegmentationResidual3DUnetForTesting(InstanceSegmentationResidual3
             with open(file_name, 'wb+') as f:
                 pickle.dump(self.predictions, f)
         return {}
-
-    def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=1,
-                          shuffle=False, num_workers=self.hparams.num_workers)
-
-    def generate_test_dataset(self, **kwargs):
-        if self.hparams.predictions_file:
-            self.predictions = []
-        self.test_dataset = generate_test_dataset(**self.hparams.__dict__)
-        self.hparams.num_classes = self.test_dataset.num_classes[0]
-        self.metrics = EvaluateInstanceSegmentationPR(self.hparams)
-        self.clustering_method = MeanShift(bandwidth=self.hparams.bandwidth,
-                                           n_jobs=self.hparams.num_workers or None)

@@ -1,10 +1,5 @@
 # Build: docker build -t project_name .
 # Run: docker run --gpus all -it --rm project_name
-
-# Build from official Nvidia PyTorch image
-# GPU-ready with Apex for mixed-precision support
-# https://ngc.nvidia.com/catalog/containers/nvidia:pytorch
-# https://docs.nvidia.com/deeplearning/frameworks/support-matrix/
 FROM nvidia/cuda:10.2-cudnn7-devel-ubuntu18.04
 
 USER root
@@ -19,18 +14,13 @@ RUN wget \
     && bash Miniconda3-latest-Linux-x86_64.sh -b \
     && rm -f Miniconda3-latest-Linux-x86_64.sh
 
-# Copy all files
 ADD . /workspace/project
 WORKDIR /workspace/project
 
-# Create myenv
 RUN conda env create -f conda_env_gpu.yaml -n partseg
 RUN conda init bash
 
-
-# Set myenv to default virtual environment
 RUN echo "source activate partseg" >> ~/.bashrc
-
 
 RUN conda install openblas-devel -c anaconda
 
@@ -38,4 +28,3 @@ RUN pip install -U git+https://github.com/NVIDIA/MinkowskiEngine \
     -v --no-deps \
     --install-option="--blas_include_dirs=${CONDA_PREFIX}/include" \
     --install-option="--blas=openblas"
-

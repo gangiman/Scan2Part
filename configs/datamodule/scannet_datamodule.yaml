@@ -5,3 +5,7 @@ data_dir: "/scannet/scans"
 batch_size: 2
 num_workers: 0
 pin_memory: False
+val_split_ratio: 0.05
+labels_mapping: map_1800_1
+train_file: ${work_dir}/data/split/train.optim.csv
+mapping_file: /code/mappings/all_mappings_v3.csv
