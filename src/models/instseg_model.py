@@ -1,11 +1,107 @@
 import pickle
 
 import torch
+from torch import nn as nn
 from src.models.lightning_model import Residual3DUnet
-from unet3d.losses import DiscriminativeLoss
 
-# from datasets.utils import stack_instance_dicts, slice_embedded
-# from utils.prediction import to_cpu
+
+class DiscriminativeLoss(nn.Module):
+    def __init__(self, delta_d, delta_v, delta_p=1,
+                 alpha=1.0, beta=1.0, gamma=0.001):
+        super(DiscriminativeLoss, self).__init__()
+        self.alpha = alpha
+        self.beta = beta
+        self.gamma = gamma
+        self.delta_d = delta_d
+        self.delta_v = delta_v
+        self.delta_p = delta_p
+
+    def forward(self, embedded, masks, size):
+        _embedded, _masks, _embedded_bg = [], [], []
+        voxels_with_labels = [(msk > 0).any(dim=1) for msk in masks]
+        for _s, _nonempty_voxels in enumerate(voxels_with_labels):
+            features = embedded[_s].reshape(-1, embedded[_s].size(-1))
+            _embedded.append(features[_nonempty_voxels])
+            _masks.append(masks[_s].view(-1, masks[_s].size(-1))[_nonempty_voxels])
+            if self.push_away_background:
+                _embedded_bg.append(features[~_nonempty_voxels])
+        centroids = self._centroids(_embedded, _masks, size)
+        L_v = self._variance(_embedded, _masks, centroids, size)
+        L_d = self._distance(centroids, size)
+        L_r = self._regularization(centroids, size)
+        loss = self.alpha * L_v + self.beta * L_d + self.gamma * L_r
+        if self.push_away_background:
+            loss += self.gamma * self._push_zero_class(_embedded, _embedded_bg)
+        return loss
+
+    def _centroids(self, embedded, masks, size):
+        batch_size = len(embedded)
+        embedding_size = embedded[0].size(-1)
+        K = masks[0].size(-1)
+        masked_embeddings = []
+        for _embed, _mask in zip(embedded, masks):
+            masked_embeddings.append(
+                _embed.unsqueeze(1).expand(-1, K, -1) * _mask.unsqueeze(2))
+        centroids = []
+        for i in range(batch_size):
+            n = size[i]
+            mu = masked_embeddings[i][:, :n].sum(0) / masks[i].unsqueeze(2)[:, :n].sum(0)
+            if K > n:
+                m = int(K - n)
+                filled = torch.zeros(m, embedding_size)
+                filled = filled.to(embedded[0].device)
+                mu = torch.cat([mu, filled], dim=0)
+            centroids.append(mu)
+        centroids = torch.stack(centroids)
+        return centroids
+
+    def _variance(self, embedded, masks, centroids, size):
+        loss = 0.0
+        batch_size = len(embedded)
+        for _embed, _mask, _centroids, n in zip(embedded, masks, centroids, size):
+            num_points = _embed.size(0)
+            K = _mask.size(1)
+            # Convert input into the same size
+            mu = _centroids.unsqueeze(0).expand(num_points, -1, -1)
+            x = _embed.unsqueeze(1).expand(-1, K, -1)
+            # Calculate intra pull force
+            var = torch.norm(x - mu, 2, dim=2)
+            var = torch.clamp(var - self.delta_v, min=0.0) ** 2
+            var = var * _mask
+            loss += torch.sum(var[:, :n]) / torch.sum(_mask[:, :n])
+        loss /= batch_size
+        return loss
+
+    def _distance(self, centroids, size):
+        batch_size = centroids.size(0)
+        loss = 0.0
+        for i in range(batch_size):
+            n = size[i]
+            if n <= 1:
+                continue
+            mu = centroids[i, :n, :]
+            mu_a = mu.unsqueeze(1).expand(-1, n, -1)
+            mu_b = mu_a.permute(1, 0, 2)
+            diff = mu_a - mu_b
+            norm = torch.norm(diff, 2, dim=2)
+            margin = 2 * self.delta_d * (1.0 - torch.eye(n))
+            margin = margin.to(centroids.device)
+            distance = torch.sum(torch.clamp(margin - norm, min=0.0) ** 2)  # hinge loss
+            distance /= float(n * (n - 1))
+            loss += distance
+        loss /= batch_size
+        return loss
+
+    def _regularization(self, centroids, size):
+        batch_size = centroids.size(0)
+        loss = 0.0
+        for i in range(batch_size):
+            n = size[i]
+            mu = centroids[i, :n, :]
+            norm = torch.norm(mu, 2, dim=1)
+            loss += torch.mean(norm)
+        loss /= batch_size
+        return loss
 
 
 def slice_embedded(embedded, object_shape):
@@ -16,6 +112,15 @@ def slice_embedded(embedded, object_shape):
         embedded_lst.append(embedded[start_slice:finish_slice])
         start_slice += obj_shape
     return embedded_lst
+
+
+def stack_instance_dicts(dicts_lst):
+    # masks_values = torch.cat([dct['masks'] for dct in dicts_lst])
+    masks_values = [dct['masks'] for dct in dicts_lst]
+    # size_values = torch.cat([dct['size'].repeat(dct['masks'].shape[0]) for dct in dicts_lst])
+    size_values = torch.stack([dct['size'] for dct in dicts_lst])
+    object_shape = torch.stack([torch.tensor(dct['object_shape']) for dct in dicts_lst])
+    return masks_values, size_values, object_shape
 
 
 class InstanceSegmentation(Residual3DUnet):
@@ -35,19 +140,13 @@ class InstanceSegmentation(Residual3DUnet):
 
     def training_step(self, batch, batch_idx):
         loss, embedded, masks = self.forward(batch)
-        print('\n##################')
-        print('train loss:', loss.item())
-        print('##################\n')
-        return {'loss': loss, 'log': {'train_loss': loss}}
+        self.log('train/loss', loss)
+        return loss
 
     def validation_step(self, batch, batch_idx):
         loss, embedded, masks = self.forward(batch)
-        return {'val_loss': loss}
-
-    def validation_epoch_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        tensorboard_logs = {'val_loss': avg_loss,}
-        return {'avg_val_loss': avg_loss, 'log': tensorboard_logs}
+        self.log('val/loss', loss, on_epoch=True)
+        return loss
 
     def test_step(self, batch, batch_idx):
         embeddings = self.model(batch['input'])

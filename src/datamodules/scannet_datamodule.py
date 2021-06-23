@@ -41,7 +41,7 @@ from src.datamodules.transforms import ElasticDeformation
 
 def get_data(_input: Tuple[Path, Path]):
     vox_file, label_file = _input
-    _label = pickle.load(label_file.open())
+    _label = pickle.load(label_file.open('rb'))
     if 'object' in _label and np.all(_label['object'] < 0):
         return None, None
     new_label = {}
@@ -52,7 +52,7 @@ def get_data(_input: Tuple[Path, Path]):
             new_label[new_key] = _label[label_key][0].astype(np.int)
         else:
             new_label[new_key] = _label[label_key].astype(np.int)
-    return load_sample(vox_file).sdf, new_label
+    return load_sample(str(vox_file)).sdf, new_label
 
 
 def custom_sparse_collate(*args, **kwargs):
