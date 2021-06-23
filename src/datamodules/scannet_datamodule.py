@@ -138,23 +138,23 @@ class ScannetDataModule(LightningDataModule):
             self.data_train, self.data_val = random_split(
                 dataset, (train_df_read.shape[0] - val_split_samples, val_split_samples)
             )
-        elif stage == 'test':
-            if grid_step is None:
-                padding_for_full_conv = 8
-                normalize = 'sample'
-            else:
-                padding_for_full_conv = None
-                normalize = 'dataset'
-            test_df = pd.read_csv(test_file, header=None, index_col=False)
-            if limit is not None:
-                assert isinstance(limit, int) and limit > 0
-                test_df = test_df.iloc[:limit]
-            inputs, labels = read_vox_and_label_files(datadir, test_df, num_workers=num_workers)
-            self.data_test = VoxelisedScanNetDataset(
-                (inputs, labels), num_workers=num_workers, grid_step=grid_step,
-               dataset_multiplier=None, one_hot_encode_instances=False,
-               padding_for_full_conv=padding_for_full_conv,
-               normalize=normalize, **kwargs)
+        # elif stage == 'test':
+        #     if grid_step is None:
+        #         padding_for_full_conv = 8
+        #         normalize = 'sample'
+        #     else:
+        #         padding_for_full_conv = None
+        #         normalize = 'dataset'
+        #     test_df = pd.read_csv(test_file, header=None, index_col=False)
+        #     if limit is not None:
+        #         assert isinstance(limit, int) and limit > 0
+        #         test_df = test_df.iloc[:limit]
+        #     inputs, labels = read_vox_and_label_files(datadir, test_df, num_workers=num_workers)
+        #     self.data_test = VoxelisedScanNetDataset(
+        #         (inputs, labels), num_workers=num_workers, grid_step=grid_step,
+        #        dataset_multiplier=None, one_hot_encode_instances=False,
+        #        padding_for_full_conv=padding_for_full_conv,
+        #        normalize=normalize, **kwargs)
 
     def train_dataloader(self):
         return DataLoader(

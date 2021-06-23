@@ -1,7 +1,7 @@
 import torch.nn as nn
 
-# from models.modules.common import ConvType, NormType, get_norm, conv
-from models.modules.common import NormType, get_norm, conv
+# from src.models.sparse.modules.common import ConvType, NormType, get_norm, conv
+from src.models.sparse.modules.common import NormType, get_norm, conv
 
 from MinkowskiEngine import MinkowskiReLU
 

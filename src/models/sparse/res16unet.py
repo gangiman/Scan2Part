@@ -1,7 +1,7 @@
-from models.resnet import ResNetBase, get_norm
-# from models.modules.common import ConvType, NormType, conv, conv_tr
-from models.modules.common import NormType, conv, conv_tr
-from models.modules.resnet_block import BasicBlock, Bottleneck
+from src.models.sparse.resnet import ResNetBase, get_norm
+# from src.models.sparse.modules.common import ConvType, NormType, conv, conv_tr
+from src.models.sparse.modules.common import NormType, conv, conv_tr
+from src.models.sparse.modules.resnet_block import BasicBlock, Bottleneck
 
 from MinkowskiEngine import MinkowskiReLU
 import MinkowskiEngine.MinkowskiOps as me

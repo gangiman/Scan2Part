@@ -1,8 +1,8 @@
-import models.resunet as resunet
-import models.res16unet as res16unet
+import src.models.sparse.resunet as resunet
+import src.models.sparse.res16unet as res16unet
 
-# from models.trilateral_crf import TrilateralCRF
-from models.conditional_random_fields import BilateralCRF, TrilateralCRF
+# from src.models.sparse.trilateral_crf import TrilateralCRF
+from src.models.sparse.conditional_random_fields import BilateralCRF, TrilateralCRF
 
 MODELS = []
 
