@@ -6,3 +6,14 @@ conv1_kernel_size: 3
 in_channels: 1
 delta_d: 1.5
 delta_v: 0.5
+
+optimizer: Adam
+learning_rate: 0.003
+weight_decay: 0.0001
+adam_beta1: 0.9 # upd
+adam_beta2: 0.999 # upd
+
+lr_scheduler: MultiStepLR
+gamma: 0.2
+# milestones: [25, 50, 75, 100, 150, 200, 250, 300]
+milestones: [40, 80, 120, 200, 280]

@@ -3,9 +3,21 @@ _target_: src.datamodules.scannet_datamodule.ScannetDataModule
 data_dir: "/scannet/scans"
 #data_dir: ${data_dir} # data_dir is specified in config.yaml
 batch_size: 2
-num_workers: 0
+num_workers: 8
+limit: 64
 pin_memory: False
 val_split_ratio: 0.05
 labels_mapping: map_1800_1
 train_file: ${work_dir}/data/split/scannet.train.csv
 mapping_file: /code/mappings/all_mappings_v3.csv
+transforms:
+  - _target_: src.datamodules.transforms.RandomFlip
+    axes: [1, 2]
+  - _target_: src.datamodules.transforms.RandomRotate90
+    axes: [1, 2]
+  - _target_: src.datamodules.transforms.RandomRotate
+    axes: [[2, 1]]
+  - _target_: src.datamodules.transforms.ElasticDeformation
+    execution_probability: 0.3
+  - _target_: src.datamodules.transforms.ToTensor
+    expand_dims: false

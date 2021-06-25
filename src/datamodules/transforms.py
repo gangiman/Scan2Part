@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import random
+import omegaconf
 from random import choice
 import MinkowskiEngine as ME
 import pandas as pd
@@ -262,6 +263,8 @@ class RandomRotate:
     def __init__(self, angle_spectrum=10, axes=None, order=0):
         if axes is None:
             axes = [(1, 0), (2, 1), (2, 0)]
+        elif isinstance(axes, omegaconf.listconfig.ListConfig):
+            axes = omegaconf.OmegaConf.to_container(axes)
         else:
             assert isinstance(axes, list) and len(axes) > 0
         self.angle_spectrum = angle_spectrum

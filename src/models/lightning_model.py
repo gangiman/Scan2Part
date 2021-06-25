@@ -1,4 +1,5 @@
 from argparse import Namespace
+import omegaconf
 
 import torch
 import torch.optim as optim
@@ -55,6 +56,8 @@ class Residual3DUnet(LightningModule):
         elif self.hparams.lr_scheduler == 'MultiStepLR':
             if isinstance(self.hparams.milestones, torch.Tensor):
                 milestones = self.hparams.milestones.tolist()
+            elif isinstance(self.hparams.milestones, omegaconf.listconfig.ListConfig):
+                milestones = omegaconf.OmegaConf.to_container(self.hparams.milestones)
             else:
                 milestones = self.hparams.milestones
             scheduler = MultiStepLR(

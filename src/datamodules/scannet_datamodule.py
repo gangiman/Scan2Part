@@ -14,26 +14,8 @@ from torch.utils.data import DataLoader, Dataset, random_split
 
 from tqdm import tqdm
 from MinkowskiEngine.utils import batch_sparse_collate
-
-from src.datamodules.transforms import ToTensor
-from src.datamodules.transforms import MapInstancesToSemanticLabels
-from src.datamodules.transforms import ComputeInstanceMasks
-from src.datamodules.transforms import RandomCrop
-from src.datamodules.transforms import RandomFlip
-from src.datamodules.transforms import RandomRotate90
-from src.datamodules.transforms import RandomRotate
-from src.datamodules.transforms import ElasticDeformation
-from src.datamodules.transforms import ToSparse
-from src.datamodules.transforms import NormalizeInstanceLabels
-from src.datamodules.transforms import GetInstanceMaskForLoD
-
-
 from src.datamodules.datasets.sample_loader import load_sample
 from src.datamodules.datasets.scannet import VoxelisedScanNetDataset
-from src.datamodules.transforms import RandomFlip
-from src.datamodules.transforms import RandomRotate90
-from src.datamodules.transforms import RandomRotate
-from src.datamodules.transforms import ElasticDeformation
 
 #TODO: replace with torchmetrics
 # from unet3d.metrics import EvaluateInstanceSegmentationPR
@@ -97,43 +79,23 @@ class ScannetDataModule(LightningDataModule):
     def setup(self, stage: Optional[str] = None):
         """Load data. Set variables: self.data_train, self.data_val, self.data_test."""
         if stage == 'fit':
-            # datadir = "/data/scannet-voxelized-sdf", testset_split_ratio = 0.1,
-            # num_workers = 1, limit = None, instance_mask = "objects", patch_shape = (64, 64, 64),
-            # train_file = "/data/scannet-voxelized-sdf/train.csv", val_file = None, sparse = False,
-            # ** kwargs
-            # self.train_dataset, self.val_dataset = generate_train_and_val_datasets(**merged_kwargs)
-
             train_df_read = pd.read_csv(self.hparams.train_file, header=None, index_col=False)
             limit = getattr(self.hparams, 'limit', None)
             train_df_read = train_df_read.iloc[:limit]
             val_split_samples = int(np.floor(train_df_read.shape[0] * self.hparams.val_split_ratio))
-            # train_data = read_vox_and_label_files(self.data_dir, train_df_read, num_workers=self.hparams.num_workers)
-            # def read_vox_and_label_files(datadir, paths_df, num_workers=1):
             num_workers = max(1, self.hparams.num_workers)
             data_files = [
                 (self.hparams.data_dir / Path(_vox), self.hparams.data_dir / Path(_label))
                 for _vox, _label in train_df_read.itertuples(name=None, index=False)]
             inputs, labels = [], []
             with concurrent.futures.ProcessPoolExecutor(num_workers) as executor:
-                # ind = 1 # for debug
                 for _vox, _label in tqdm(executor.map(get_data, data_files), total=len(data_files),
                                          leave=False, desc="Loading data files"):
-                    # print(ind) # for debug
-                    # ind += 1 # for debug
                     inputs.append(_vox)
                     labels.append(_label)
-                
-            train_transforms = [
-                RandomFlip(axes=(1, 2)),
-                RandomRotate90(axes=(1, 2)),
-                RandomRotate(axes=[(2, 1)]),
-                ElasticDeformation(execution_probability=0.3),
-                ToTensor(expand_dims=False)
-            ]
 
-            # return (
             dataset = VoxelisedScanNetDataset(
-                inputs, labels, transforms=train_transforms)
+                inputs, labels, transforms=self.hparams.transforms)
 
             self.data_train, self.data_val = random_split(
                 dataset, (train_df_read.shape[0] - val_split_samples, val_split_samples)
