@@ -1,14 +1,10 @@
 import torch
 import numpy as np
-import random
 import omegaconf
 from random import choice
-import MinkowskiEngine as ME
 import pandas as pd
 from typing import Dict
 from scipy.ndimage import rotate, map_coordinates, gaussian_filter
-from MinkowskiEngine.utils import sparse_collate
-
 
 
 class ComputeInstanceMasks:
@@ -24,29 +20,15 @@ class ComputeInstanceMasks:
 
 
 class NormalizeInstanceLabels:
-    def __init__(self, key, label_key, background_label=0):
-        self.key = key
-        self.label_key = label_key # semantic_nyu20id
-        self.background_label = background_label
-        if background_label == 0:
-            self.index_shift = 1
-        else:
-            self.index_shift = 0
+    def __init__(self, instance_label_key='objects'):
+        self.instance_label_key = instance_label_key
 
     def __call__(self, sample):
-        # classes_to_map = sample[self.key].unique() # original code
-        labels = sample[self.label_key]
-        classes_to_map = labels.unique()
-        max_mapping_id = max(classes_to_map)
-        labels_mapping = torch.zeros(max_mapping_id + 3, dtype=torch.long)
+        instance_labels = sample[self.instance_label_key]
+        classes_to_map = instance_labels.unique()
+        # assumes background instance labels are < 0
         num_instance_classes = classes_to_map[classes_to_map >= 0].shape[0]
-        labels_mapping[classes_to_map[classes_to_map >= 0]] = \
-            torch.arange(self.index_shift, num_instance_classes + self.index_shift,
-                         dtype=torch.long)
-        labels_mapping[[-2, -1]] = self.background_label
-        # sample[self.key] = labels_mapping[sample[self.key]] # original code
-        sample[self.key] = labels_mapping[labels] # masks
-        sample[self.key + '_size'] = torch.tensor(num_instance_classes) # size
+        sample[self.instance_label_key + '_size'] = torch.tensor(num_instance_classes)
         return sample
 
 
@@ -356,29 +338,20 @@ class RandomCrop:
 
 
 class ToSparse:
-    def __init__(self, label_key='semantic', bg_value=0, instance_mask='semantic'):
-        self.label_key = label_key
+    def __init__(self, semantic_key='semantic', bg_value=0, instance_key='objects'):
+        self.semantic_key = semantic_key
         self.bg_value = bg_value
-        self.instance_mask = instance_mask
+        self.instance_key = instance_key
     
     def __call__(self, sample: dict):
-        label = sample[self.label_key]
-        nnz_index = torch.where(label != self.bg_value)
-        
+        semantic_labels = sample[self.semantic_key]
+        nnz_index = torch.where(semantic_labels != self.bg_value)
         coordinates = torch.stack(nnz_index, dim=1).to(torch.int32)
         features = sample['input'][0][nnz_index].unsqueeze(1)
-        # labels = label[nnz_index].unsqueeze(1)
-
-        # print('\n')
-        # print('coordinates:', coordinates.shape)
-        # print('features:', features.shape)
-        # print(sample[self.instance_mask].shape) # [39, 111, 198, 14]
-        # print(sample[self.instance_mask][nnz_index].shape) # [29575, 14]
-        # print(sample[self.instance_mask][nnz_index].unsqueeze(1).shape) # [29575, 1, 14]
-        # print('\n')
-
-        masks = sample[self.instance_mask][nnz_index]
-        size = sample[self.instance_mask + '_size']
-        instseg_dct = {'masks': masks, 'size': size, 'object_shape': features.shape[0]}
-
-        return coordinates, features, instseg_dct
+        size_key = self.instance_key + '_size'
+        return coordinates, features, {
+            self.instance_key: sample[self.instance_key][nnz_index],
+            self.semantic_key: semantic_labels[nnz_index],
+            size_key: sample[size_key],
+            'nnz': features.shape[0]
+        }
