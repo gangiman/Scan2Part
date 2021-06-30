@@ -1,4 +1,5 @@
 import pickle
+from collections import defaultdict
 
 import torch
 from torch import nn as nn
@@ -17,21 +18,11 @@ class DiscriminativeLoss(nn.Module):
         self.delta_p = delta_p
 
     def forward(self, embedded, masks, size):
-        _embedded, _masks, _embedded_bg = [], [], []
-        voxels_with_labels = [(msk > 0).any(dim=1) for msk in masks]
-        for _s, _nonempty_voxels in enumerate(voxels_with_labels):
-            features = embedded[_s].reshape(-1, embedded[_s].size(-1))
-            _embedded.append(features[_nonempty_voxels])
-            _masks.append(masks[_s].view(-1, masks[_s].size(-1))[_nonempty_voxels])
-            if self.push_away_background:
-                _embedded_bg.append(features[~_nonempty_voxels])
-        centroids = self._centroids(_embedded, _masks, size)
-        L_v = self._variance(_embedded, _masks, centroids, size)
+        centroids = self._centroids(embedded, masks, size)
+        L_v = self._variance(embedded, masks, centroids, size)
         L_d = self._distance(centroids, size)
         L_r = self._regularization(centroids, size)
         loss = self.alpha * L_v + self.beta * L_d + self.gamma * L_r
-        if self.push_away_background:
-            loss += self.gamma * self._push_zero_class(_embedded, _embedded_bg)
         return loss
 
     def _centroids(self, embedded, masks, size):
@@ -103,24 +94,12 @@ class DiscriminativeLoss(nn.Module):
         loss /= batch_size
         return loss
 
-
-def slice_embedded(embedded, object_shape):
-    embedded_lst = []
-    start_slice = 0
-    for obj_shape in object_shape:
-        finish_slice = start_slice + obj_shape
-        embedded_lst.append(embedded[start_slice:finish_slice])
-        start_slice += obj_shape
-    return embedded_lst
-
-
-def stack_instance_dicts(dicts_lst):
-    # masks_values = torch.cat([dct['masks'] for dct in dicts_lst])
-    masks_values = [dct['masks'] for dct in dicts_lst]
-    # size_values = torch.cat([dct['size'].repeat(dct['masks'].shape[0]) for dct in dicts_lst])
-    size_values = torch.stack([dct['size'] for dct in dicts_lst])
-    object_shape = torch.stack([torch.tensor(dct['object_shape']) for dct in dicts_lst])
-    return masks_values, size_values, object_shape
+def stack_instance_dicts(test_list):
+    res = defaultdict(list)
+    for sub in test_list:
+        for key in sub:
+            res[key].append(sub[key])
+    return res
 
 
 class InstanceSegmentation(Residual3DUnet):
@@ -130,12 +109,13 @@ class InstanceSegmentation(Residual3DUnet):
 
     def forward(self, batch):
         features, instseg_dct = batch
-        masks, size, object_shape = stack_instance_dicts(instseg_dct)
-
-        embedded = self.model(features).F
-        # print(embedded)
-        embedded = slice_embedded(embedded, object_shape)
-        loss = self.loss(embedded, masks, size)
+        batch_size = len(instseg_dct)
+        dict_of_lists = stack_instance_dicts(instseg_dct)
+        sparse_embedded = self.model(features) 
+        embedded = [sparse_embedded.features_at(i) for i in range(batch_size)]
+        masks = dict_of_lists['objects']
+        objects_size = dict_of_lists['objects_size']
+        loss = self.loss(embedded, masks, objects_size)
         return loss, embedded, masks
 
     def training_step(self, batch, batch_idx):

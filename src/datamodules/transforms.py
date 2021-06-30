@@ -8,14 +8,17 @@ from scipy.ndimage import rotate, map_coordinates, gaussian_filter
 
 
 class ComputeInstanceMasks:
-    def __init__(self, max_num_of_instances_in_sample, instance_mask):
+    def __init__(self, max_num_of_instances_in_sample=40, instance_mask='objects'):
         self.max_instances = max_num_of_instances_in_sample
-        self._key = instance_mask
+        self.instance_mask = instance_mask
 
     def __call__(self, sample):
-        masks = torch.zeros(sample[self._key].shape + (self.max_instances + 1,), dtype=torch.float32)
-        masks.scatter_(3, sample[self._key].unsqueeze(-1), 1)
-        sample[self._key] = masks[..., 1:]
+        _, _, label_dict = sample
+        instance_labels = label_dict[self.instance_mask]
+        masks = torch.zeros((instance_labels.shape[0], self.max_instances), dtype=torch.float32)
+        masks.scatter_(1, instance_labels.unsqueeze(-1), 1)
+        label_dict[self.instance_mask] = masks
+        # sample[2] = label_dict
         return sample
 
 
