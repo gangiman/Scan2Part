@@ -8,7 +8,6 @@ import pandas as pd
 import numpy as np
 from sklearn.cluster import MeanShift
 
-import MinkowskiEngine as ME
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader, Dataset, random_split
 
@@ -35,11 +34,6 @@ def get_data(_input: Tuple[Path, Path]):
         else:
             new_label[new_key] = _label[label_key].astype(np.int)
     return load_sample(str(vox_file)).sdf, new_label
-
-
-def custom_sparse_collate(*args, **kwargs):
-    batch_coords, batch_features, batch_labels = batch_sparse_collate(*args, **kwargs)
-    return ME.SparseTensor(batch_features, coordinates=batch_coords, device=batch_features.device), batch_labels
 
 
 class ScannetDataModule(LightningDataModule):
@@ -124,7 +118,7 @@ class ScannetDataModule(LightningDataModule):
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
-            collate_fn=custom_sparse_collate,
+            collate_fn=batch_sparse_collate,
             shuffle=True,
             drop_last=True
         )
@@ -135,7 +129,7 @@ class ScannetDataModule(LightningDataModule):
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
-            collate_fn=custom_sparse_collate,
+            collate_fn=batch_sparse_collate,
             shuffle=False,
         )
 
@@ -145,6 +139,6 @@ class ScannetDataModule(LightningDataModule):
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
-            collate_fn=custom_sparse_collate,
+            collate_fn=batch_sparse_collate,
             shuffle=False,
         )

@@ -29,6 +29,13 @@ class NormalizeInstanceLabels:
     def __call__(self, sample):
         instance_labels = sample[self.instance_label_key]
         classes_to_map = instance_labels.unique()
+        max_mapping_id = max(classes_to_map)
+        labels_mapping = torch.zeros(max_mapping_id + 3, dtype=torch.long)
+        num_instance_classes = classes_to_map[classes_to_map >= 0].shape[0]
+        labels_mapping[classes_to_map[classes_to_map >= 0]] = \
+            torch.arange(0, num_instance_classes, dtype=torch.long)
+        labels_mapping[[-2, -1]] = -2
+        sample[self.instance_label_key] = labels_mapping[instance_labels]
         # assumes background instance labels are < 0
         num_instance_classes = classes_to_map[classes_to_map >= 0].shape[0]
         sample[self.instance_label_key + '_size'] = torch.tensor(num_instance_classes)
@@ -348,13 +355,13 @@ class ToSparse:
     
     def __call__(self, sample: dict):
         semantic_labels = sample[self.semantic_key]
-        nnz_index = torch.where(semantic_labels != self.bg_value)
+        instance_labels = sample[self.instance_key]
+        nnz_index = torch.where(instance_labels >= 0)
         coordinates = torch.stack(nnz_index, dim=1).to(torch.int32)
         features = sample['input'][0][nnz_index].unsqueeze(1)
         size_key = self.instance_key + '_size'
         return coordinates, features, {
-            self.instance_key: sample[self.instance_key][nnz_index],
+            self.instance_key: instance_labels[nnz_index],
             self.semantic_key: semantic_labels[nnz_index],
-            size_key: sample[size_key],
-            'nnz': features.shape[0]
+            size_key: sample[size_key]
         }

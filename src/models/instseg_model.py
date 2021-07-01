@@ -3,6 +3,7 @@ from collections import defaultdict
 
 import torch
 from torch import nn as nn
+import MinkowskiEngine as ME
 from src.models.lightning_model import Residual3DUnet
 
 
@@ -94,6 +95,7 @@ class DiscriminativeLoss(nn.Module):
         loss /= batch_size
         return loss
 
+
 def stack_instance_dicts(test_list):
     res = defaultdict(list)
     for sub in test_list:
@@ -108,9 +110,13 @@ class InstanceSegmentation(Residual3DUnet):
         self.loss = DiscriminativeLoss(self.hparams.delta_d, self.hparams.delta_v)
 
     def forward(self, batch):
-        features, instseg_dct = batch
-        batch_size = len(instseg_dct)
-        dict_of_lists = stack_instance_dicts(instseg_dct)
+        batch_coords, batch_features, batch_labels = batch
+        features = ME.SparseTensor(
+            batch_features,
+            coordinates=batch_coords,
+            device=batch_features.device)
+        batch_size = len(batch_labels)
+        dict_of_lists = stack_instance_dicts(batch_labels)
         sparse_embedded = self.model(features) 
         embedded = [sparse_embedded.features_at(i) for i in range(batch_size)]
         masks = dict_of_lists['objects']
@@ -120,12 +126,12 @@ class InstanceSegmentation(Residual3DUnet):
 
     def training_step(self, batch, batch_idx):
         loss, embedded, masks = self.forward(batch)
-        self.log('train/loss', loss)
+        self.log('train/loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         loss, embedded, masks = self.forward(batch)
-        self.log('val/loss', loss, on_epoch=True)
+        self.log('val/loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def test_step(self, batch, batch_idx):
