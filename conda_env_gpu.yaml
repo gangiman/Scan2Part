@@ -3,6 +3,7 @@ name: partseg
 channels:
   - pytorch
   - conda-forge
+  - anaconda
 
 dependencies:
   - python=3.8
@@ -10,5 +11,6 @@ dependencies:
   - cudatoolkit=10.2
   - pytorch=1.8.1
   - torchvision=0.9.1
+  - openblas-devel
   - pip:
       - -r requirements.txt

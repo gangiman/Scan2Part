@@ -22,7 +22,7 @@ RUN conda init bash
 
 RUN echo "source activate partseg" >> ~/.bashrc
 
-RUN conda install openblas-devel -c anaconda
+RUN /bin/bash
 
 RUN pip install -U git+https://github.com/NVIDIA/MinkowskiEngine \
     -v --no-deps \

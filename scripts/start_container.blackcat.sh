@@ -1,16 +1,14 @@
 #!/usr/bin/env bash
-HOMEDIR="/home/anotchenko"
+HOMEDIR="/home/alexandr-notchenko"
 CODE_DIR="$HOMEDIR/Projects/partseg"
-SCANNET_DIR="$HOMEDIR/Datasets/scannet"
+SCANNET_DIR="$HOMEDIR/Datasets/scan2cad"
 LOGS="$HOMEDIR/logs-part-segmentation"
 docker run -it --rm \
         --runtime='nvidia' \
-         --cpuset-cpus='20-27' \
-        --gpus=all \
         -p 8855:8888 \
-        --shm-size=32g \
+        --shm-size=16g \
         -v $CODE_DIR:/code \
         -v $SCANNET_DIR:/scannet:ro \
-        -v $LOGS/athena:/logs \
+        -v $LOGS/blackcat:/logs \
         --name='partseg' \
-        'anotchenko/partseg:latest'
+        'partseg:latest'
