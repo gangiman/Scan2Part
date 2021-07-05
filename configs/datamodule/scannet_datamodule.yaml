@@ -2,10 +2,10 @@ _target_: src.datamodules.scannet_datamodule.ScannetDataModule
 
 data_dir: "/scannet/scannet-voxelized-sdf"
 #data_dir: ${data_dir} # data_dir is specified in config.yaml
-batch_size: 32
-num_workers: 8
+batch_size: 64
+num_workers: 6
 limit: null
-pin_memory: False
+pin_memory: True
 val_split_ratio: 0.05
 labels_mapping: map_1800_1
 train_file: /code/data/split/train.optim.csv
