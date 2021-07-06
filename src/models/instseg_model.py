@@ -109,7 +109,10 @@ class InstanceSegmentation(Residual3DUnet):
         super().__init__(**kwargs)
         self.loss = DiscriminativeLoss(self.hparams.delta_d, self.hparams.delta_v)
 
-    def forward(self, batch):
+    def forward(self, features):
+        return self.model(features)
+
+    def shared_step(self, batch):
         batch_coords, batch_features, batch_labels = batch
         features = ME.SparseTensor(
             batch_features,
@@ -117,22 +120,20 @@ class InstanceSegmentation(Residual3DUnet):
             device=batch_features.device)
         batch_size = len(batch_labels)
         dict_of_lists = stack_instance_dicts(batch_labels)
-        sparse_embedded = self.model(features) 
+        sparse_embedded = self.forward(features)
         embedded = [sparse_embedded.features_at(i) for i in range(batch_size)]
-        masks = dict_of_lists['objects']
-        objects_size = dict_of_lists['objects_size']
-        loss = self.loss(embedded, masks, objects_size)
-        return loss, embedded, masks
+        loss = self.loss(embedded, dict_of_lists['objects'], dict_of_lists['objects_size'])
+        return loss, embedded, dict_of_lists
 
     def training_step(self, batch, batch_idx):
-        loss, embedded, masks = self.forward(batch)
+        loss, *_ = self.shared_step(batch)
         self.log('train/loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        loss, embedded, masks = self.forward(batch)
+        loss, embedded, masks_dict = self.shared_step(batch)
         self.log('val/loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        return loss
+        return {'embedded': embedded, **masks_dict}
 
     def test_step(self, batch, batch_idx):
         embeddings = self.model(batch['input'])

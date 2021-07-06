@@ -24,12 +24,12 @@ transforms:
   - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
     labels_mapping: map_1800_1
     mapping_file: /code/data/mappings/all_mappings_v3.csv
-    mapped_key: "semantic_map_1800_1"
+    mapped_key: "semantic"
     sparse: True
   - _target_: src.datamodules.transforms.NormalizeInstanceLabels
     instance_label_key: "objects"
   - _target_: src.datamodules.transforms.ToSparse
-    semantic_key: "semantic_map_1800_1"
+    semantic_key: "semantic"
     instance_key: "objects"
     bg_value: 0
   - _target_: src.datamodules.transforms.ComputeInstanceMasks
