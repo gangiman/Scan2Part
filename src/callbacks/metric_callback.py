@@ -22,11 +22,13 @@ class LogInstSegIoU(Callback):
             num_classes: int = None,
             bandwidth: float = 1.0,
             num_workers: int = 1,
+            plot_3d_points_every_n: bool = False
     ):
         self.metrics = EvaluateInstanceSegmentationPR(num_classes=num_classes)
         self.clustering_method = MeanShift(bandwidth=bandwidth,
                                            n_jobs=num_workers or None)
         self.ready = True
+        self.plot_3d_points_every_n = plot_3d_points_every_n
 
     def on_sanity_check_start(self, trainer, pl_module):
         self.ready = False
@@ -40,13 +42,24 @@ class LogInstSegIoU(Callback):
     ):
         """Gather data from single batch."""
         if self.ready:
-            for _embedded, _semantic, _instance_masks in zip(
-                    outputs['embedded'], outputs['semantic'], outputs['objects']):
+            for _i, (_embedded, _semantic, _instance_masks) in enumerate(zip(
+                    outputs['embedded'], outputs['semantic'], outputs['objects'])):
                 pred_instances = self.clustering_method.fit_predict(_embedded.cpu().numpy())
+                if self.plot_3d_points_every_n and ((_i * batch_idx) % self.plot_3d_points_every_n == 0):
+                    self._make_3d_points_plot(batch, _i, pred_instances, batch_idx)
                 self.metrics.update_rates(
                     pred_instances,
                     _semantic.cpu().numpy(),
                     _instance_masks.nonzero()[:, 1].cpu().numpy())
+
+    @staticmethod
+    def _make_3d_points_plot(batch, _i, pred_instances, batch_idx):
+        batch_coords = batch[0]
+        max_instance_id = pred_instances.max()
+        colors = plt.cm.jet(pred_instances/max_instance_id, bytes=True)[:, :3]
+        xyz = batch_coords[batch_coords[:, 0] == _i, 1:].cpu().numpy()
+        pred_point_cloud = np.concatenate([xyz, colors], axis=1)
+        wandb.log({f"val/point_cloud_{_i * batch_idx}": wandb.Object3D(pred_point_cloud)})
 
     def on_validation_epoch_end(self, trainer, pl_module):
         """Generate f1, precision and recall heatmap."""
@@ -58,14 +71,14 @@ class LogInstSegIoU(Callback):
                 'val/mAP': mAP, 'val/mIoU': mIoU,
                 'val/PR': wandb.Table(dataframe=df.T)
             }
-            fig = plt.figure(figsize=(12, 12))
-            sns.jointplot(
-                x="true_ints_count", y="pred_inst_count",
-                data=pd.DataFrame(
-                    self.metrics.inst_tuples,
-                    columns=("true_ints_count", "pred_inst_count")
-                ), kind="reg")
-            metrics[f"val/instance_pairs"] = fig
+            # fig = plt.figure(figsize=(12, 12))
+            # sns.jointplot(
+            #     x="true_ints_count", y="pred_inst_count",
+            #     data=pd.DataFrame(
+            #         self.metrics.inst_tuples,
+            #         columns=("true_ints_count", "pred_inst_count")
+            #     ), kind="reg")
+            # metrics[f"val/instance_pairs"] = fig
             experiment.log(metrics, commit=False)
             plt.clf()
             self.metrics.reset()
