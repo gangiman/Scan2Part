@@ -157,3 +157,39 @@ class EvaluateInstanceSegmentationPR:
             r[i] = tp / self.total[i]
         pr_iou = pd.DataFrame({"precision": p, "recall": r, "iou": iou, "num_instances": self.total})
         return pr_iou, np.nanmean(p), np.nanmean(iou)
+
+
+class LogSemSegIoU(Callback):
+    """Generate f1, precision, recall heatmap every epoch and send it to wandb.
+    Expects validation step to return predictions and targets.
+    """
+
+    def __init__(
+            self,
+            class_names: List[str] = None,
+            num_classes: int = None,
+            bandwidth: float = 1.0,
+            num_workers: int = 1,
+            plot_3d_points_every_n: bool = False
+    ):
+        self.metrics = EvaluateInstanceSegmentationPR(num_classes=num_classes)
+        self.clustering_method = MeanShift(bandwidth=bandwidth,
+                                           n_jobs=num_workers or None)
+        self.ready = True
+        self.plot_3d_points_every_n = plot_3d_points_every_n
+
+    def validation_epoch_end(self, outputs):
+        for _label_mapping, _confusion_matrix in self.confusion_matrix.items():
+            metrics = _confusion_matrix.compute_iou_metrics()
+            self.logger.experiment.add_figure(f'confusion_matrix_{_label_mapping}',
+                                              _confusion_matrix.plot_confusion_matrix(with_text=False),
+                                              self.trainer.global_step, close=True)
+            self.logger.experiment.add_text(f'iou_{_label_mapping}', str(metrics['iou']),
+                                            global_step=self.trainer.global_step)
+            _confusion_matrix.reset()
+        outputs = {_k: _v.mean() for _k, _v in outputs.items() if _k != 'meta'}
+        result_epoch_end = pl.EvalResult(
+            checkpoint_on=outputs[f'miou_{self.hparams.labels_mapping[0]}'],
+            early_stop_on=outputs['val_loss'])
+        result_epoch_end.log_dict(outputs, sync_dist=True)
+        return result_epoch_end

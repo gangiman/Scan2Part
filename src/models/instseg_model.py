@@ -1,9 +1,7 @@
 import pickle
-from collections import defaultdict
 
 import torch
 from torch import nn as nn
-import MinkowskiEngine as ME
 from src.models.lightning_model import Residual3DUnet
 
 
@@ -96,32 +94,13 @@ class DiscriminativeLoss(nn.Module):
         return loss
 
 
-def stack_instance_dicts(test_list):
-    res = defaultdict(list)
-    for sub in test_list:
-        for key in sub:
-            res[key].append(sub[key])
-    return res
-
-
 class InstanceSegmentation(Residual3DUnet):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.loss = DiscriminativeLoss(self.hparams.delta_d, self.hparams.delta_v)
 
-    def forward(self, features):
-        return self.model(features)
-
     def shared_step(self, batch):
-        batch_coords, batch_features, batch_labels = batch
-        features = ME.SparseTensor(
-            batch_features,
-            coordinates=batch_coords,
-            device=batch_features.device)
-        batch_size = len(batch_labels)
-        dict_of_lists = stack_instance_dicts(batch_labels)
-        sparse_embedded = self.forward(features)
-        embedded = [sparse_embedded.features_at(i) for i in range(batch_size)]
+        embedded, dict_of_lists = self.forward(batch)
         loss = self.loss(embedded, dict_of_lists['objects'], dict_of_lists['objects_size'])
         return loss, embedded, dict_of_lists
 

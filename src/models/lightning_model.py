@@ -1,5 +1,7 @@
 from argparse import Namespace
 import omegaconf
+from collections import defaultdict
+import MinkowskiEngine as ME
 
 import torch
 import torch.optim as optim
@@ -10,6 +12,14 @@ from pytorch_lightning import LightningModule
 from src.models.sparse.res16unet import Res16UNet18A
 from src.models.sparse.res16unet import Res16UNet34C, Res16UNet34B
 from src.utils.poly_lr_decay import PolynomialLRDecay
+
+
+def stack_instance_dicts(test_list):
+    res = defaultdict(list)
+    for sub in test_list:
+        for key in sub:
+            res[key].append(sub[key])
+    return res
 
 
 class Residual3DUnet(LightningModule):
@@ -34,6 +44,20 @@ class Residual3DUnet(LightningModule):
             self.model = Res16UNet34B(
                 in_channels, f_maps,
                 Namespace(bn_momentum=0.05, conv1_kernel_size=conv1_kernel_size))
+        else:
+            raise AssertionError(f"Unknown backbone type {sparse_backbone_type}")
+
+    def forward(self, batch):
+        batch_coords, batch_features, batch_labels = batch
+        features = ME.SparseTensor(
+            batch_features,
+            coordinates=batch_coords,
+            device=batch_features.device)
+        batch_size = len(batch_labels)
+        dict_of_lists = stack_instance_dicts(batch_labels)
+        sparse_embedded = self.model(features)
+        embedded = [sparse_embedded.features_at(i) for i in range(batch_size)]
+        return embedded, dict_of_lists
 
     def configure_optimizers(self):
         if self.hparams.optimizer == 'SGD':
