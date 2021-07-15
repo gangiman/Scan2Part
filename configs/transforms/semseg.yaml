@@ -1,0 +1,20 @@
+transforms:
+#- _target_: src.datamodules.transforms.RandomFlip
+#  axes: [1, 2]
+#- _target_: src.datamodules.transforms.RandomRotate90
+#  axes: [1, 2]
+#- _target_: src.datamodules.transforms.RandomRotate
+#  axes: [[2, 1]]
+#- _target_: src.datamodules.transforms.ElasticDeformation
+#  execution_probability: 0.3
+  - _target_: src.datamodules.transforms.ToTensor
+    expand_dims: false
+  - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
+    labels_mapping: map_1800_1
+    mapping_file: /code/data/mappings/all_mappings_v3.csv
+    mapped_key: "semantic"
+    sparse: True
+  - _target_: src.datamodules.transforms.ToSparse
+    keys_to_sparsify: ['semantic']
+    nnz_key: 'semantic'
+    bg_value: 1

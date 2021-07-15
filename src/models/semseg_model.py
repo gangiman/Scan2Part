@@ -37,7 +37,7 @@ class SemanticHeadLoss(nn.Module):
         return self.loss_weight * self.criterion(logits, target)
 
 
-class SemanticSegmentationResidual3DUnet(Residual3DUnet):
+class SemanticSegmentation(Residual3DUnet):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.loss = nn.ModuleList()
@@ -50,7 +50,7 @@ class SemanticSegmentationResidual3DUnet(Residual3DUnet):
 
     def shared_step(self, batch):
         embedded, dict_of_lists = self.forward(batch)
-        loss = torch.sum([_head(embedded, dict_of_lists) for _head in self.heads])
+        loss = torch.sum([_head.forward(embedded, dict_of_lists) for _head in self.heads])
         return loss, embedded, dict_of_lists
 
     def training_step(self, batch, batch_idx):

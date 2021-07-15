@@ -1,4 +1,4 @@
-_target_: src.models.instseg_model.InstanceSegmentation
+_target_: src.models.semseg_model.SemanticSegmentation
 
 f_maps: 32
 sparse_backbone_type: Res16UNet34C

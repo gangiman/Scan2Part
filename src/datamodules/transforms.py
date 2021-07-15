@@ -3,7 +3,7 @@ import numpy as np
 import omegaconf
 from random import choice
 import pandas as pd
-from typing import Dict
+from typing import Dict, Sequence
 from scipy.ndimage import rotate, map_coordinates, gaussian_filter
 
 
@@ -348,20 +348,26 @@ class RandomCrop:
 
 
 class ToSparse:
-    def __init__(self, semantic_key='semantic', bg_value=0, instance_key='objects'):
-        self.semantic_key = semantic_key
+    def __init__(
+            self,
+            keys_to_sparsify: Sequence = ('semantic', 'objects', 'objects_size'),
+            nnz_key='objects',
+            bg_value=0,
+    ):
+        self.keys_to_sparsify = keys_to_sparsify
         self.bg_value = bg_value
-        self.instance_key = instance_key
+        self.nnz_key = nnz_key
     
-    def __call__(self, sample: dict):
-        semantic_labels = sample[self.semantic_key]
-        instance_labels = sample[self.instance_key]
-        nnz_index = torch.where(instance_labels >= 0)
+    def __call__(self, sample: Dict[str, torch.Tensor]):
+        nnz_labels = sample[self.nnz_key]
+        nnz_index = torch.where(nnz_labels >= self.bg_value)
         coordinates = torch.stack(nnz_index, dim=1).to(torch.int32)
         features = sample['input'][0][nnz_index].unsqueeze(1)
-        size_key = self.instance_key + '_size'
-        return coordinates, features, {
-            self.instance_key: instance_labels[nnz_index],
-            self.semantic_key: semantic_labels[nnz_index],
-            size_key: sample[size_key]
-        }
+        output = {}
+        for _key in self.keys_to_sparsify:
+            labels = sample[_key]
+            if labels.ndim > 1:
+                output[_key] = labels[nnz_index]
+            else:
+                output[_key] = labels
+        return coordinates, features, output
