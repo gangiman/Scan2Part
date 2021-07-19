@@ -75,8 +75,14 @@ class ToTensor:
 
 
 class MapInstancesToSemanticLabels:
-    def __init__(self, labels_mapping, mapping_file='/code/mappings/norm_all_mappings_v2.csv',
-                 mapped_key='semantic', normalize_labels=True, sparse=False):
+    def __init__(
+            self,
+            labels_mapping: str = None,
+            mapping_file: str = None,
+            mapped_key: str = 'semantic',
+            normalize_labels: bool = True,
+            map_bg_to_value: int = 0
+    ):
         self.mapped_key = mapped_key
         self.labels_mapping = labels_mapping
         self.mapping_file = mapping_file
@@ -86,21 +92,15 @@ class MapInstancesToSemanticLabels:
             .append({_col: 0 for _col in label_mappings_df}, ignore_index=True)[labels_mapping]
         unique_labels = np.sort(label_mappings_df.unique())
         max_class = label_mappings_df.max() + 1
-        if (frozenset(unique_labels) != frozenset(range(max_class))) and normalize_labels:
+        if normalize_labels:
             remap = np.zeros(max_class, dtype=np.int)
             remap[unique_labels] = np.arange(0, unique_labels.shape[0], dtype=np.int)
+            remap += map_bg_to_value
             mapping = remap[label_mappings_df.values]
         else:
             mapping = label_mappings_df.values
-        #######################################################################
-        if not sparse:
-            self.num_classes = int(np.max(mapping) + 1)
-        else:
-            self.num_classes = int(np.max(mapping) + 1) # for instance debug
-            # self.num_classes = int(np.max(mapping))
-            
+        self.num_classes = int(np.max(mapping) + 1)
         self.mapping = torch.tensor(mapping)
-        #######################################################################
 
     def __repr__(self):
         return f"Labels Mapping for key '{self.mapped_key}'"
@@ -235,6 +235,7 @@ class RandomFlip:
                     sample[_k] = np.flip(m, axis + int(_k == 'input'))
         return sample
 
+
 class RandomRotate90:
     def __init__(self, axes=(1, 2)):
         self.axes = axes
@@ -274,6 +275,7 @@ class RandomRotate:
             sample[_key] = rotate(m, angle, axes=axis, reshape=False, order=self.order, mode=mode, cval=-2)
         return sample
 
+
 class ElasticDeformation:
     """
     Apply elasitc deformations of 3D patches on a per-voxel mesh. Assumes ZYX axis order!
@@ -305,6 +307,7 @@ class ElasticDeformation:
                 else:
                     sample[_key] = map_coordinates(m, indices, order=0, mode='reflect')
         return sample
+
 
 class RandomCrop:
     def __init__(self, patch_shape=(64,64,64), label_key='parts'):

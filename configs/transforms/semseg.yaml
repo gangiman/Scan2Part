@@ -13,8 +13,8 @@ transforms:
     labels_mapping: map_1800_1
     mapping_file: /code/data/mappings/all_mappings_v3.csv
     mapped_key: "semantic"
-    sparse: True
+    map_bg_to_value: -1
   - _target_: src.datamodules.transforms.ToSparse
     keys_to_sparsify: ['semantic']
     nnz_key: 'semantic'
-    bg_value: 1
+    bg_value: 0

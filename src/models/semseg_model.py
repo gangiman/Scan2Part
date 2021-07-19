@@ -1,11 +1,8 @@
 import pickle
-from collections import defaultdict
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 import torch
 from torch import nn
-import pytorch_lightning as pl
-from torch.utils.data import DataLoader
 import numpy as np
 from src.models.lightning_model import Residual3DUnet
 
@@ -24,17 +21,19 @@ class SemanticHeadLoss(nn.Module):
         if class_weights_file is None:
             weights = None
         else:
-            weights = torch.tensor(np.load(class_weights_file))
-            # TODO: compute weights using `weight_mode`
+            class_counts = torch.tensor(np.load(class_weights_file))
+            weights = getattr(class_counts, weight_mode)() / class_counts.to(torch.float)
         self.loss_weight = loss_weight
         self.semantic_key = semantic_key
         self.final_layer = nn.Linear(f_maps, num_classes, bias=False)
         self.criterion = nn.CrossEntropyLoss(weight=weights)
 
-    def forward(self, features, batch):
-        logits = self.final_layer(features)
+    def forward(self, features: List[torch.Tensor], batch: Dict[str, List[torch.Tensor]]):
         target = batch[self.semantic_key]
-        return self.loss_weight * self.criterion(logits, target)
+        return self.loss_weight * torch.stack([
+            self.criterion(self.final_layer(_features), _target)
+            for _features, _target in zip(features, target)
+        ]).sum()
 
 
 class SemanticSegmentation(Residual3DUnet):
@@ -50,7 +49,7 @@ class SemanticSegmentation(Residual3DUnet):
 
     def shared_step(self, batch):
         embedded, dict_of_lists = self.forward(batch)
-        loss = torch.sum([_head.forward(embedded, dict_of_lists) for _head in self.heads])
+        loss = torch.stack([_head.forward(embedded, dict_of_lists) for _head in self.heads]).sum()
         return loss, embedded, dict_of_lists
 
     def training_step(self, batch, batch_idx):
@@ -62,7 +61,6 @@ class SemanticSegmentation(Residual3DUnet):
         loss, embedded, masks_dict = self.shared_step(batch)
         self.log('val/loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return {'embedded': embedded, **masks_dict}
-
 
     def test_step(self, batch, batch_idx):
         accumulated = None

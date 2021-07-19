@@ -1,6 +1,3 @@
-defaults:
-  - transforms: semseg.yaml
-
 _target_: src.datamodules.scannet_datamodule.ScannetDataModule
 
 data_dir: "/scannet/scannet-voxelized-sdf"
