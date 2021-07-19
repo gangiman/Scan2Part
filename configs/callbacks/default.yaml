@@ -7,18 +7,3 @@ model_checkpoint:
   verbose: False
   dirpath: "checkpoints/"
   filename: "{epoch:02d}"
-
-
-log_intance_metrics_callback:
- _target_: src.callbacks.metric_callback.LogInstSegIoU
- num_classes: 14
- bandwidth: 1.0
- num_workers: 6
- plot_3d_points_every_n: 4
-
-#early_stopping:
-#  _target_: pytorch_lightning.callbacks.EarlyStopping
-#  monitor: "val/acc" # name of the logged metric which determines when model is improving
-#  patience: 100 # how many epochs of not improving until training stops
-#  mode: "max" # can be "max" or "min"
-#  min_delta: 0 # minimum change in the monitored metric needed to qualify as an improvement

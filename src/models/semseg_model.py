@@ -29,11 +29,12 @@ class SemanticHeadLoss(nn.Module):
         self.criterion = nn.CrossEntropyLoss(weight=weights)
 
     def forward(self, features: List[torch.Tensor], batch: Dict[str, List[torch.Tensor]]):
+        logits = [self.final_layer(_features) for _features in features]
         target = batch[self.semantic_key]
         return self.loss_weight * torch.stack([
-            self.criterion(self.final_layer(_features), _target)
-            for _features, _target in zip(features, target)
-        ]).sum()
+            self.criterion(_logits, _target)
+            for _logits, _target in zip(logits, target)
+        ]).sum(), logits
 
 
 class SemanticSegmentation(Residual3DUnet):
@@ -49,8 +50,13 @@ class SemanticSegmentation(Residual3DUnet):
 
     def shared_step(self, batch):
         embedded, dict_of_lists = self.forward(batch)
-        loss = torch.stack([_head.forward(embedded, dict_of_lists) for _head in self.heads]).sum()
-        return loss, embedded, dict_of_lists
+        loss_terms = []
+        head_logits = []
+        for _head in self.heads:
+            loss, logits = _head.forward(embedded, dict_of_lists)
+            loss_terms.append(loss)
+            head_logits.append(logits)
+        return torch.stack(loss_terms).sum(), head_logits, dict_of_lists
 
     def training_step(self, batch, batch_idx):
         loss, *_ = self.shared_step(batch)
@@ -58,9 +64,9 @@ class SemanticSegmentation(Residual3DUnet):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        loss, embedded, masks_dict = self.shared_step(batch)
+        loss, head_logits, masks_dict = self.shared_step(batch)
         self.log('val/loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        return {'embedded': embedded, **masks_dict}
+        return {'head_logits': head_logits, **masks_dict}
 
     def test_step(self, batch, batch_idx):
         accumulated = None

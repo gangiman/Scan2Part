@@ -3,7 +3,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from typing import List
-import seaborn as sns; sns.set()
+
+import seaborn as sn
+import seaborn as sns;
+import torch
+from matplotlib import pyplot as plt
+from sklearn import metrics
+
+sns.set()
 import wandb
 from pytorch_lightning import Callback
 
@@ -193,3 +200,62 @@ class LogSemSegIoU(Callback):
             early_stop_on=outputs['val_loss'])
         result_epoch_end.log_dict(outputs, sync_dist=True)
         return result_epoch_end
+
+
+class LogConfusionMatrix(Callback):
+    """Generate confusion matrix every epoch and send it to wandb.
+    Expects validation step to return predictions and targets.
+    """
+
+    def __init__(self):
+        self.preds = []
+        self.targets = []
+        self.ready = True
+
+    def on_sanity_check_start(self, trainer, pl_module) -> None:
+        self.ready = False
+
+    def on_sanity_check_end(self, trainer, pl_module):
+        """Start executing this callback only after all validation sanity checks end."""
+        self.ready = True
+
+    def on_validation_batch_end(
+        self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx
+    ):
+        """Gather data from single batch."""
+        if self.ready:
+            self.preds.extend(outputs['head_logits'][0])
+            self.targets.extend(outputs['semantic'])
+
+    def on_validation_epoch_end(self, trainer, pl_module):
+        """Generate confusion matrix."""
+        if self.ready:
+            logger = get_wandb_logger(trainer)
+            experiment = logger.experiment
+
+            preds = torch.cat(self.preds).cpu().numpy()
+            targets = torch.cat(self.targets).cpu().numpy()
+            if len(preds.shape) > 1:
+                preds = np.argmax(preds, axis=1)
+            confusion_matrix = metrics.confusion_matrix(y_true=targets, y_pred=preds)
+
+            # set figure size
+            plt.figure(figsize=(14, 8))
+
+            # set labels size
+            sn.set(font_scale=1.4)
+
+            # set font size
+            sn.heatmap(confusion_matrix, annot=True, annot_kws={"size": 8}, fmt="g")
+
+            # names should be uniqe or else charts from different experiments in wandb will overlap
+            experiment.log({f"confusion_matrix/{experiment.name}": wandb.Image(plt)}, commit=False)
+
+            # according to wandb docs this should also work but it crashes
+            # experiment.log(f{"confusion_matrix/{experiment.name}": plt})
+
+            # reset plot
+            plt.clf()
+
+            self.preds.clear()
+            self.targets.clear()
