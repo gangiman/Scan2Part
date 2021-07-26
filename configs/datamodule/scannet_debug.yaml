@@ -7,6 +7,4 @@ num_workers: 6
 limit: 64
 pin_memory: True
 val_split_ratio: 0.5
-labels_mapping: map_1800_1
 train_file: /code/data/split/train.optim.csv
-mapping_file: /code/data/mappings/all_mappings_v3.csv

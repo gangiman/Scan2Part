@@ -10,7 +10,7 @@
   expand_dims: false
 - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
   labels_mapping: map_1800_1
-  mapping_file: /code/data/mappings/all_mappings_v3.csv
+  mapping_file: /code/data/mappings/all_mappings_v4.csv
   mapped_key: "semantic"
   sparse: True
 - _target_: src.datamodules.transforms.NormalizeInstanceLabels

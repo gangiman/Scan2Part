@@ -10,6 +10,7 @@ heads:
     semantic_key: 'semantic'
     weight_mode: 'median' # in ('min', 'mean', 'median', 'max')
     class_weights_file: /code/data/weights/scannet.npy
+    label_names: /code/data/label_names/map_1800_1.csv
 
 optimizer: Adam
 learning_rate: 0.003
