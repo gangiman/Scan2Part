@@ -60,10 +60,6 @@ class ScannetDataModule(LightningDataModule):
         self.data_val: Optional[Dataset] = None
         self.data_test: Optional[Dataset] = None
 
-    @property
-    def num_classes(self) -> int:
-        return 10
-
     def prepare_data(self):
         """Download data if needed. This method is called only from a single GPU.
         Do not use it to assign state (self.x = y)."""
@@ -93,23 +89,6 @@ class ScannetDataModule(LightningDataModule):
             self.data_train, self.data_val = random_split(
                 dataset, (train_df_read.shape[0] - val_split_samples, val_split_samples)
             )
-        # elif stage == 'test':
-        #     if grid_step is None:
-        #         padding_for_full_conv = 8
-        #         normalize = 'sample'
-        #     else:
-        #         padding_for_full_conv = None
-        #         normalize = 'dataset'
-        #     test_df = pd.read_csv(test_file, header=None, index_col=False)
-        #     if limit is not None:
-        #         assert isinstance(limit, int) and limit > 0
-        #         test_df = test_df.iloc[:limit]
-        #     inputs, labels = read_vox_and_label_files(datadir, test_df, num_workers=num_workers)
-        #     self.data_test = VoxelisedScanNetDataset(
-        #         (inputs, labels), num_workers=num_workers, grid_step=grid_step,
-        #        dataset_multiplier=None, one_hot_encode_instances=False,
-        #        padding_for_full_conv=padding_for_full_conv,
-        #        normalize=normalize, **kwargs)
 
     def train_dataloader(self):
         return DataLoader(
@@ -125,16 +104,6 @@ class ScannetDataModule(LightningDataModule):
     def val_dataloader(self):
         return DataLoader(
             dataset=self.data_val,
-            batch_size=self.hparams.batch_size,
-            num_workers=self.hparams.num_workers,
-            pin_memory=self.hparams.pin_memory,
-            collate_fn=batch_sparse_collate,
-            shuffle=False,
-        )
-
-    def test_dataloader(self):
-        return DataLoader(
-            self.data_test,
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,

@@ -167,15 +167,17 @@ class EvaluateInstanceSegmentationPR:
         return pr_iou, np.nanmean(p), np.nanmean(iou)
 
 
-class LogConfusionMatrix(Callback):
+class LogConfusionMatrixAndMetrics(Callback):
     """Generate confusion matrix every epoch and send it to wandb.
     Expects validation step to return predictions and targets.
     """
 
-    def __init__(self):
+    def __init__(self, label_names: str = None):
+        self.label_names = pd.read_csv(label_names, squeeze=True, header=None).tolist()
         self.preds = []
         self.targets = []
         self.ready = True
+        self.experiment = None
 
     def on_sanity_check_start(self, trainer, pl_module) -> None:
         self.ready = False
@@ -196,119 +198,65 @@ class LogConfusionMatrix(Callback):
         """Generate confusion matrix."""
         if self.ready:
             logger = get_wandb_logger(trainer)
-            experiment = logger.experiment
+            self.experiment = logger.experiment
 
             preds = torch.cat(self.preds).cpu().numpy()
             targets = torch.cat(self.targets).cpu().numpy()
             if len(preds.shape) > 1:
                 preds = np.argmax(preds, axis=1)
-
-            label_names = trainer.model.get_label_names()[0]
-            label_ids = list(range(len(label_names)))
-
-            confusion_matrix = metrics.confusion_matrix(y_true=targets, y_pred=preds, labels=label_ids)
-
-            # set figure size
-            plt.figure(figsize=(14, 12))
-
-            # set labels size
-            sn.set(font_scale=1.4)
-
-            # set font size
-            sn.heatmap(
-                confusion_matrix,
-                annot=True,
-                annot_kws={"size": 8},
-                fmt="g",
-                yticklabels=label_names,
-                xticklabels=label_names
-            )
-
-            # names should be uniqe or else charts from different experiments in wandb will overlap
-            experiment.log({f"confusion_matrix/{experiment.name}": wandb.Image(plt)}, commit=False)
-
-            # according to wandb docs this should also work but it crashes
-            # experiment.log(f{"confusion_matrix/{experiment.name}": plt})
-
-            # reset plot
-            plt.clf()
-
+            label_ids = list(range(len(self.label_names)))
+            self.plot_confusion_matrix(targets, preds, label_ids)
+            self.plot_pr_f1(targets, preds, label_ids)
             self.preds.clear()
             self.targets.clear()
 
+    def plot_confusion_matrix(self, targets, preds, label_ids):
+        confusion_matrix = metrics.confusion_matrix(y_true=targets, y_pred=preds, labels=label_ids)
+        # set figure size
+        plt.figure(figsize=(14, 12))
+        # set labels size
+        sn.set(font_scale=1.4)
+        # set font size
+        sn.heatmap(
+            confusion_matrix,
+            annot=True,
+            annot_kws={"size": 8},
+            fmt="g",
+            yticklabels=self.label_names,
+            xticklabels=self.label_names
+        )
+        # names should be uniqe or else charts from different experiments in wandb will overlap
+        self.experiment.log({f"confusion_matrix/{self.experiment.name}": wandb.Image(plt)}, commit=False)
+        # according to wandb docs this should also work but it crashes
+        # experiment.log(f{"confusion_matrix/{experiment.name}": plt})
+        # reset plot
+        plt.clf()
 
-class LogF1PrecRecHeatmap(Callback):
-    """Generate f1, precision, recall heatmap every epoch and send it to wandb.
-    Expects validation step to return predictions and targets.
-    """
-
-    def __init__(self):
-        self.preds = []
-        self.targets = []
-        self.ready = True
-
-    def on_sanity_check_start(self, trainer, pl_module):
-        self.ready = False
-
-    def on_sanity_check_end(self, trainer, pl_module):
-        """Start executing this callback only after all validation sanity checks end."""
-        self.ready = True
-
-    def on_validation_batch_end(
-        self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx
-    ):
-        """Gather data from single batch."""
-        if self.ready:
-            self.preds.extend(outputs['head_logits'][0])
-            self.targets.extend(outputs['semantic'])
-
-    def on_validation_epoch_end(self, trainer, pl_module):
+    def plot_pr_f1(self, targets, preds, label_ids):
         """Generate f1, precision and recall heatmap."""
-        if self.ready:
-            logger = get_wandb_logger(trainer=trainer)
-            experiment = logger.experiment
-
-            preds = torch.cat(self.preds).cpu().numpy()
-            if len(preds.shape) > 1:
-                preds = np.argmax(preds, axis=1)
-            targets = torch.cat(self.targets).cpu().numpy()
-
-            label_names = trainer.model.get_label_names()[0]
-            label_ids = list(range(len(label_names)))
-
-            f1 = f1_score(preds, targets, labels=label_ids, average=None)
-            r = recall_score(preds, targets, labels=label_ids, average=None)
-            p = precision_score(preds, targets, labels=label_ids, average=None)
-
-            experiment.log({
-                'val/precision': p.mean(),
-                'val/recall': r.mean(),
-                'val/f1': f1.mean(),
-            }, commit=False)
-
-            data = [f1, p, r]
-
-            # set figure size
-            plt.figure(figsize=(14, 8))
-
-            # set labels size
-            sn.set(font_scale=1.2)
-
-            # set font size
-            sn.heatmap(
-                data,
-                annot=True,
-                annot_kws={"size": 10},
-                fmt=".3f",
-                yticklabels=["F1", "Precision", "Recall"],
-                xticklabels=label_names
-            )
-
-            # names should be uniqe or else charts from different experiments in wandb will overlap
-            experiment.log({f"f1_p_r_heatmap/{experiment.name}": wandb.Image(plt)}, commit=False)
-
-            # reset plot
-            plt.clf()
-
-            self.preds.clear()
-            self.targets.clear()
+        f1 = f1_score(preds, targets, labels=label_ids, average=None)
+        r = recall_score(preds, targets, labels=label_ids, average=None)
+        p = precision_score(preds, targets, labels=label_ids, average=None)
+        self.experiment.log({
+            'val/precision': p.mean(),
+            'val/recall': r.mean(),
+            'val/f1': f1.mean(),
+        }, commit=False)
+        data = [f1, p, r]
+        # set figure size
+        plt.figure(figsize=(14, 8))
+        # set labels size
+        sn.set(font_scale=1.2)
+        # set font size
+        sn.heatmap(
+            data,
+            annot=True,
+            annot_kws={"size": 10},
+            fmt=".3f",
+            yticklabels=["F1", "Precision", "Recall"],
+            xticklabels=self.label_names
+        )
+        # names should be uniqe or else charts from different experiments in wandb will overlap
+        self.experiment.log({f"f1_p_r_heatmap/{self.experiment.name}": wandb.Image(plt)}, commit=False)
+        # reset plot
+        plt.clf()

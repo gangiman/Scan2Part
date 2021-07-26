@@ -16,7 +16,6 @@ class SemanticHeadLoss(nn.Module):
             weight_mode: str = 'median',
             class_weights_file: Optional[str] = None,
             f_maps: int = 32,
-            label_names: str = None,
             **kwargs
     ):
         super().__init__()
@@ -26,10 +25,6 @@ class SemanticHeadLoss(nn.Module):
             class_counts = torch.tensor(np.load(class_weights_file))
             weights = getattr(class_counts, weight_mode)() / class_counts.to(torch.float)
         self.loss_weight = loss_weight
-        if label_names is None:
-            self.label_names = list(map(str, range(num_classes)))
-        else:
-            self.label_names = pd.read_csv(label_names, squeeze=True, header=None).tolist()
         self.semantic_key = semantic_key
         self.final_layer = nn.Linear(f_maps, num_classes, bias=False)
         self.criterion = nn.CrossEntropyLoss(weight=weights)
@@ -53,12 +48,6 @@ class SemanticSegmentation(Residual3DUnet):
         self.heads = nn.ModuleList([
             SemanticHeadLoss(**_head, f_maps=self.hparams.f_maps)
             for _head in self.hparams.heads])
-
-    def get_label_names(self):
-        return [
-            _head.label_names
-            for _head in self.heads
-        ]
 
     def shared_step(self, batch):
         embedded, dict_of_lists = self.forward(batch)
