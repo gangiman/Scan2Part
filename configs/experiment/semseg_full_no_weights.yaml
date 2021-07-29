@@ -1,0 +1,21 @@
+# @package _global_
+
+# to execute this experiment run:
+# python run.py experiment=semseg_full.yaml
+
+defaults:
+  - override /trainer: ddp.yaml # choose trainer from 'configs/trainer/'
+  - override /model: semantic_segmentation_model.yaml
+  - override /datamodule: scannet_datamodule.yaml
+  - override /callbacks: semseg.yaml
+  - override /logger: wandb.yaml
+  - override /transforms: semseg.yaml
+
+model:
+  heads:
+    - num_classes: 13
+      loss_weight: 1.0
+      semantic_key: 'semantic'
+
+trainer:
+  max_epochs: 200

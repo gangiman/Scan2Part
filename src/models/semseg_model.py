@@ -3,7 +3,6 @@ from typing import Dict, Optional, List
 import torch
 from torch import nn
 import numpy as np
-import pandas as pd
 from src.models.lightning_model import Residual3DUnet
 
 

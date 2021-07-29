@@ -1,22 +1,21 @@
-import scipy.stats as stats
-import numpy as np
-import matplotlib.pyplot as plt
-import pandas as pd
 from typing import List
 
-import seaborn as sn
-import seaborn as sns;
-import torch
-from matplotlib import pyplot as plt
-from sklearn import metrics
-
-sns.set()
 import wandb
+import torch
+import numpy as np
+import pandas as pd
+import seaborn as sn
+import scipy.stats as stats
+from matplotlib import pyplot as plt
 from pytorch_lightning import Callback
 
+from sklearn import metrics
 from sklearn.cluster import MeanShift
 from sklearn.metrics import f1_score, precision_score, recall_score
+
 from src.callbacks.wandb_callbacks import get_wandb_logger
+
+sn.set()
 
 
 class LogInstSegIoU(Callback):
@@ -211,7 +210,11 @@ class LogConfusionMatrixAndMetrics(Callback):
             self.targets.clear()
 
     def plot_confusion_matrix(self, targets, preds, label_ids):
-        confusion_matrix = metrics.confusion_matrix(y_true=targets, y_pred=preds, labels=label_ids)
+        confusion_matrix = metrics.confusion_matrix(
+            y_true=targets,
+            y_pred=preds,
+            labels=label_ids,
+            normalize=True)
         # set figure size
         plt.figure(figsize=(14, 12))
         # set labels size
