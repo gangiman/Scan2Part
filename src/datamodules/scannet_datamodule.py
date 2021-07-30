@@ -14,12 +14,10 @@ from tqdm import tqdm
 from MinkowskiEngine.utils import batch_sparse_collate
 from src.datamodules.datasets.sample_loader import load_sample
 from src.datamodules.datasets.scannet import VoxelisedScanNetDataset
-
-#TODO: replace with torchmetrics
-# from unet3d.metrics import EvaluateInstanceSegmentationPR
+from src.datamodules.datasets.scannet import SparseScanNetDataset
 
 
-def get_data(_input: Tuple[Path, Path]):
+def load_vox_and_pkl(_input: Tuple[Path, Path]):
     vox_file, label_file = _input
     _label = pickle.load(label_file.open('rb'))
     if 'object' in _label and np.all(_label['object'] < 0):
@@ -33,6 +31,11 @@ def get_data(_input: Tuple[Path, Path]):
         else:
             new_label[new_key] = _label[label_key].astype(np.int)
     return load_sample(str(vox_file)).sdf, new_label
+
+
+def load_sparse_sample(_input: Tuple):
+    label_file = _input[0]
+    return np.load(label_file.open('rb'),allow_pickle=True).item()
 
 
 class ScannetDataModule(LightningDataModule):
@@ -53,12 +56,22 @@ class ScannetDataModule(LightningDataModule):
         https://pytorch-lightning.readthedocs.io/en/latest/extensions/datamodules.html
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, version='v1', **kwargs):
         super().__init__()
+        if version == 'v1':
+            self.load_fn = load_vox_and_pkl
+            self.dataset_class = VoxelisedScanNetDataset
+        elif version == 'v2':
+            self.load_fn = load_sparse_sample
+            self.dataset_class = SparseScanNetDataset
+        else:
+            self.load_fn = None
+            self.dataset_class = None
         self.hparams = Namespace(**kwargs)
         self.data_train: Optional[Dataset] = None
         self.data_val: Optional[Dataset] = None
         self.data_test: Optional[Dataset] = None
+        self.data = []
 
     def prepare_data(self):
         """Download data if needed. This method is called only from a single GPU.
@@ -74,17 +87,16 @@ class ScannetDataModule(LightningDataModule):
             val_split_samples = int(np.floor(train_df_read.shape[0] * self.hparams.val_split_ratio))
             num_workers = max(1, self.hparams.num_workers)
             data_files = [
-                (self.hparams.data_dir / Path(_vox), self.hparams.data_dir / Path(_label))
-                for _vox, _label in train_df_read.itertuples(name=None, index=False)]
-            inputs, labels = [], []
-            with concurrent.futures.ProcessPoolExecutor(num_workers) as executor:
-                for _vox, _label in tqdm(executor.map(get_data, data_files), total=len(data_files),
-                                         leave=False, desc="Loading data files"):
-                    inputs.append(_vox)
-                    labels.append(_label)
+                tuple(self.hparams.data_dir / Path(_path) for _path in _paths)
+                for _paths in train_df_read.itertuples(name=None, index=False)]
 
-            dataset = VoxelisedScanNetDataset(
-                inputs, labels, transforms=self.hparams.transforms)
+            with concurrent.futures.ProcessPoolExecutor(num_workers) as executor:
+                for _sample in tqdm(executor.map(self.load_fn, data_files), total=len(data_files),
+                                    leave=False, desc="Loading data files"):
+                    self.data.append(_sample)
+
+            dataset = self.dataset_class(
+                self.data, transforms=self.hparams.transforms)
 
             self.data_train, self.data_val = random_split(
                 dataset, (train_df_read.shape[0] - val_split_samples, val_split_samples)

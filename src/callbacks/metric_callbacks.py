@@ -1,5 +1,6 @@
 from typing import List
 
+import k3d
 import wandb
 import torch
 import numpy as np
@@ -208,6 +209,23 @@ class LogConfusionMatrixAndMetrics(Callback):
             self.plot_pr_f1(targets, preds, label_ids)
             self.preds.clear()
             self.targets.clear()
+
+    @staticmethod
+    def _plot_3d_points_as_k3d_html(self, coords, color, _id):
+        """_id = _i * batch_idx"""
+        shape = tuple(coords.max(axis=0) + 1)
+        point_cloud = coords / coords.max() - .5
+        pc_col = np.sum(color[:, :3].astype(np.uint32) * np.array([1, 256, 256 ** 2])[::-1], axis=1)
+
+        plot = k3d.plot()
+        point_size = 1 / (max(shape) + 20)  # 0.005
+        plot += k3d.points(point_cloud,
+                           pc_col.astype(np.uint32),
+                           point_size=point_size,
+                           shader="flat")
+        plot.display()
+        html_code = plot.get_snapshot()
+        wandb.log({f"val/k3d_point_cloud_{_id}": wandb.Html(html_code)})
 
     def plot_confusion_matrix(self, targets, preds, label_ids):
         confusion_matrix = metrics.confusion_matrix(
