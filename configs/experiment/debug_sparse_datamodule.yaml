@@ -13,3 +13,7 @@ defaults:
 
 model:
   in_channels: 4
+
+callbacks:
+  log_confusion_matrix:
+    plot_3d_points_every_n: 16

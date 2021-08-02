@@ -1,4 +1,5 @@
 import k3d
+import torch
 from k3d.colormaps.matplotlib_color_maps import jet
 import numpy as np
 
@@ -27,3 +28,33 @@ def plot_voxels(np_voxels, **kwargs):
     plot += obj
 #     plot.display()
     return plot
+
+
+def plot_3d_points_as_k3d_html(coords, color):
+    """_id = _i * batch_idx"""
+    shape = tuple(coords.max(axis=0) + 1)
+    point_cloud = coords / coords.max() - .5
+    pc_col = np.sum(color[:, :3].astype(np.uint32) * np.array([1, 256, 256 ** 2])[::-1], axis=1)
+
+    plot = k3d.plot()
+    point_size = 1 / (max(shape) + 20)  # 0.005
+    plot += k3d.points(point_cloud,
+                       pc_col.astype(np.uint32),
+                       point_size=point_size,
+                       shader="flat")
+    plot.display()
+    # wandb.log({f"val/k3d_point_cloud_{_id}": wandb.Html(html_code)})
+    return plot.get_snapshot()
+
+
+def plot_3d_voxels_as_k3d_html(coords, preds):
+    if isinstance(coords, torch.Tensor):
+        coords = coords.cpu().detach().numpy()
+        preds = preds.cpu().detach().numpy()
+    if len(preds.shape) > 1:
+        preds = np.argmax(preds, axis=1)
+    shape = tuple(coords.max(axis=0) + 1)
+    voxels = np.zeros(shape, dtype=np.uint8)
+    voxels[tuple(coords.T)] = preds + 1
+    plot = plot_voxels(voxels)
+    return plot.get_snapshot()

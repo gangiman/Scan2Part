@@ -395,6 +395,7 @@ class PrepareSparseFeatures:
         nnz_index = sample[self.nnz_key] >= self.bg_value
         coordinates = sample['coords'][nnz_index]
         features = sample['sdf'][nnz_index].unsqueeze(1)
+        features *= 5.0
         if self.add_color:
             color = sample['color'][nnz_index, :3].to(torch.float32)
             color -= 127.5

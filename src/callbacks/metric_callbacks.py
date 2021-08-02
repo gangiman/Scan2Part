@@ -15,6 +15,7 @@ from sklearn.metrics import f1_score, precision_score, recall_score
 
 from src.callbacks.wandb_callbacks import get_wandb_logger
 from src.utils.metrics import EvaluateInstanceSegmentationPR
+from src.utils.plotting import plot_3d_voxels_as_k3d_html
 
 sn.set()
 
@@ -97,10 +98,12 @@ class LogConfusionMatrixAndMetrics(Callback):
     Expects validation step to return predictions and targets.
     """
 
-    def __init__(self, label_names: str = None):
+    def __init__(self, label_names: str = None, plot_3d_points_every_n: bool = False):
         self.label_names = pd.read_csv(label_names, squeeze=True, header=None).tolist()
+        self.plot_3d_points_every_n = plot_3d_points_every_n
         self.preds = []
         self.targets = []
+        self.coords = []
         self.ready = True
         self.experiment = None
 
@@ -116,6 +119,11 @@ class LogConfusionMatrixAndMetrics(Callback):
     ):
         """Gather data from single batch."""
         if self.ready:
+            batch_coords = batch[0]
+            self.coords.extend([
+                batch_coords[batch_coords[:, 0] == _i, 1:]
+                for _i in range(batch_coords[:, 0].max() + 1)
+            ])
             self.preds.extend(outputs['head_logits'][0])
             self.targets.extend(outputs['semantic'])
 
@@ -132,25 +140,13 @@ class LogConfusionMatrixAndMetrics(Callback):
             label_ids = list(range(len(self.label_names)))
             self.plot_confusion_matrix(targets, preds, label_ids)
             self.plot_pr_f1(targets, preds, label_ids)
+            for _i, (_coord, _target, _pred) in enumerate(zip(self.coords, self.targets, self.preds)):
+                if self.plot_3d_points_every_n and (_i % self.plot_3d_points_every_n == 0):
+                    html = plot_3d_voxels_as_k3d_html(_coord, _pred)
+                    self.experiment.log({f"val/k3d_voxels_{_i}": wandb.Html(html)})
+            self.coords.clear()
             self.preds.clear()
             self.targets.clear()
-
-    @staticmethod
-    def _plot_3d_points_as_k3d_html(coords, color, _id):
-        """_id = _i * batch_idx"""
-        shape = tuple(coords.max(axis=0) + 1)
-        point_cloud = coords / coords.max() - .5
-        pc_col = np.sum(color[:, :3].astype(np.uint32) * np.array([1, 256, 256 ** 2])[::-1], axis=1)
-
-        plot = k3d.plot()
-        point_size = 1 / (max(shape) + 20)  # 0.005
-        plot += k3d.points(point_cloud,
-                           pc_col.astype(np.uint32),
-                           point_size=point_size,
-                           shader="flat")
-        plot.display()
-        html_code = plot.get_snapshot()
-        wandb.log({f"val/k3d_point_cloud_{_id}": wandb.Html(html_code)})
 
     def plot_confusion_matrix(self, targets, preds, label_ids):
         confusion_matrix = metrics.confusion_matrix(

@@ -40,10 +40,6 @@ class SemanticHeadLoss(nn.Module):
 class SemanticSegmentation(Residual3DUnet):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.loss = nn.ModuleList()
-        self.final_layer = nn.ModuleList()
-        self.loss_weights = []
-
         self.heads = nn.ModuleList([
             SemanticHeadLoss(**_head, f_maps=self.hparams.f_maps)
             for _head in self.hparams.heads])
