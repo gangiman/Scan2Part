@@ -3,8 +3,9 @@ import numpy as np
 import omegaconf
 from random import choice
 import pandas as pd
-from typing import Dict, Sequence, Tuple
+from typing import Dict, Sequence, Tuple, Optional
 from scipy.ndimage import rotate, map_coordinates, gaussian_filter
+# from src.utils.hierarchy import get_output_hierarchy
 
 
 class ComputeInstanceMasks:
@@ -166,8 +167,16 @@ class GetInstanceMaskForLoD:
 
 
 class MapLabelsToHeads:
-    def __init__(self, head_hierarchy, mapping_file):
-        self.head_hierarchy = head_hierarchy
+    def __init__(self,
+                 hierarchy_file: str = None,
+                 mapping_file: str = None,
+                 nodes: Optional[Sequence] = None,
+                 lods: Optional[Sequence] = None
+                 ):
+        self.head_hierarchy = get_output_hierarchy(
+            hierarchy_file,
+            selected_nodes=nodes,
+            selected_lods=lods)
         self._mapping_file = mapping_file
         self.lod_and_set_id = {}
         self.lod_mappings = {}

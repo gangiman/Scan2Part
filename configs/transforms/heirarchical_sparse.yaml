@@ -1,0 +1,26 @@
+transforms:
+  - _target_: src.datamodules.transforms.ToTensor
+    expand_dims: false
+  - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
+    labels_mapping: map_0k_1
+    mapping_file: /code/data/mappings/all_mappings.csv
+    mapped_key: "semantic_1"
+    labels_key: "mask"
+    normalize_labels: false
+  - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
+    labels_mapping: map_0k_2
+    mapping_file: /code/data/mappings/all_mappings.csv
+    mapped_key: "semantic_2"
+    labels_key: "mask"
+    normalize_labels: false
+  - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
+    labels_mapping: map_0k_3
+    mapping_file: /code/data/mappings/all_mappings.csv
+    mapped_key: "semantic_3"
+    labels_key: "mask"
+    normalize_labels: false
+  - _target_: src.datamodules.transforms.PrepareSparseFeatures
+    keys_to_sparsify: ['semantic_1', 'semantic_2', 'semantic_3']
+    nnz_key: 'semantic_1'
+    add_color: true
+    bg_value: 0
