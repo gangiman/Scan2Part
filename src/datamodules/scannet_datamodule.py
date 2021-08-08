@@ -84,7 +84,7 @@ class ScannetDataModule(LightningDataModule):
             train_df_read = pd.read_csv(self.hparams.train_file, header=None, index_col=False)
             limit = getattr(self.hparams, 'limit', None)
             train_df_read = train_df_read.iloc[:limit]
-            val_split_samples = int(np.floor(train_df_read.shape[0] * self.hparams.val_split_ratio))
+            assert train_df_read.shape[0] > self.hparams.num_val_samples
             num_workers = max(1, self.hparams.num_workers)
             data_files = [
                 tuple(self.hparams.data_dir / Path(_path) for _path in _paths)
@@ -99,7 +99,7 @@ class ScannetDataModule(LightningDataModule):
                 self.data, transforms=self.hparams.transforms)
 
             self.data_train, self.data_val = random_split(
-                dataset, (train_df_read.shape[0] - val_split_samples, val_split_samples)
+                dataset, (train_df_read.shape[0] - self.hparams.num_val_samples, self.hparams.num_val_samples)
             )
 
     def train_dataloader(self):

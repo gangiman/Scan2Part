@@ -1,12 +1,19 @@
 # @package _global_
 
 # to execute this experiment run:
-# python run.py experiment=debug_semseg.yaml
+# python run.py experiment=debug_sparse_datamodule.yaml
 
 defaults:
-  - override /trainer: debug.yaml # choose trainer from 'configs/trainer/'
+  - override /trainer: ddp.yaml # choose trainer from 'configs/trainer/'
   - override /model: semantic_segmentation_model.yaml
   - override /datamodule: scannet_dm_sparse.yaml
   - override /callbacks: semseg.yaml
-  - override /logger: None
-  - override /transforms: semseg.yaml
+  - override /logger: wandb.yaml
+  - override /transforms: semseg_sparse.yaml
+
+model:
+  in_channels: 4
+
+callbacks:
+  log_confusion_matrix:
+    plot_3d_points_every_n: 16

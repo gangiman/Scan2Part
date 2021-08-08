@@ -3,8 +3,9 @@ import numpy as np
 import omegaconf
 from random import choice
 import pandas as pd
-from typing import Dict, Sequence
+from typing import Dict, Sequence, Tuple, Optional
 from scipy.ndimage import rotate, map_coordinates, gaussian_filter
+# from src.utils.hierarchy import get_output_hierarchy
 
 
 class ComputeInstanceMasks:
@@ -80,10 +81,12 @@ class MapInstancesToSemanticLabels:
             labels_mapping: str = None,
             mapping_file: str = None,
             mapped_key: str = 'semantic',
+            labels_key: str = 'parts',
             normalize_labels: bool = True,
             map_bg_to_value: int = 0
     ):
         self.mapped_key = mapped_key
+        self.labels_key = labels_key
         self.labels_mapping = labels_mapping
         self.mapping_file = mapping_file
         label_mappings_df = pd.read_csv(mapping_file, usecols=lambda x: x == labels_mapping)
@@ -134,11 +137,11 @@ class MapInstancesToSemanticLabels:
         return bottom_up_mapping.reindex(new_index, fill_value=0).values
 
     def __call__(self, sample):
-        if isinstance(sample['parts'], np.ndarray):
+        if isinstance(sample[self.labels_key], np.ndarray):
             mapping = self.mapping.numpy()
         else:
             mapping = self.mapping
-        sample[self.mapped_key] = mapping[sample['parts']]
+        sample[self.mapped_key] = mapping[sample[self.labels_key]]
         return sample
 
 
@@ -164,8 +167,16 @@ class GetInstanceMaskForLoD:
 
 
 class MapLabelsToHeads:
-    def __init__(self, head_hierarchy, mapping_file):
-        self.head_hierarchy = head_hierarchy
+    def __init__(self,
+                 hierarchy_file: str = None,
+                 mapping_file: str = None,
+                 nodes: Optional[Sequence] = None,
+                 lods: Optional[Sequence] = None
+                 ):
+        self.head_hierarchy = get_output_hierarchy(
+            hierarchy_file,
+            selected_nodes=nodes,
+            selected_lods=lods)
         self._mapping_file = mapping_file
         self.lod_and_set_id = {}
         self.lod_mappings = {}
@@ -373,4 +384,36 @@ class ToSparse:
                 output[_key] = labels[nnz_index]
             else:
                 output[_key] = labels
+        return coordinates, features, output
+
+
+class PrepareSparseFeatures:
+    def __init__(
+            self,
+            keys_to_sparsify: Tuple[str] = ('semantic', 'object'),
+            nnz_key: str = 'semantic',
+            bg_value: int = 0,
+            add_color: bool = False
+    ):
+        self.keys_to_sparsify = keys_to_sparsify
+        self.bg_value = bg_value
+        self.nnz_key = nnz_key
+        self.add_color = add_color
+
+    def __call__(self, sample: Dict[str, torch.Tensor]):
+        nnz_index = sample[self.nnz_key] >= self.bg_value
+        coordinates = sample['coords'][nnz_index]
+        features = sample['sdf'][nnz_index].unsqueeze(1)
+        features *= 5.0
+        if self.add_color:
+            color = sample['color'][nnz_index, :3].to(torch.float32)
+            color -= 127.5
+            color /= 127.5
+            features = torch.cat([features, color], dim=1)
+
+        output = {}
+        for _key in self.keys_to_sparsify:
+            labels = sample[_key]
+            output[_key] = labels[nnz_index]
+
         return coordinates, features, output
