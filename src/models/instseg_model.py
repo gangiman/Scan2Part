@@ -148,3 +148,15 @@ class InstanceSegmentation(Residual3DUnet):
             with open(file_name, 'wb+') as f:
                 pickle.dump(self.predictions, f)
         return {}
+    
+    #######################################################
+    def training_epoch_end(self, outputs) -> None:
+        if not self.hparams.minkowski:
+            scn.forward_pass_multiplyAdd_count = 0
+            scn.forward_pass_hidden_states = 0
+            
+    def validation_epoch_end(self, outputs) -> None:
+        if not self.hparams.minkowski:
+            scn.forward_pass_multiplyAdd_count = 0
+            scn.forward_pass_hidden_states = 0
+    #######################################################

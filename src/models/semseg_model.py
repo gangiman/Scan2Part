@@ -4,6 +4,7 @@ import torch
 from torch import nn
 import numpy as np
 from src.models.lightning_model import Residual3DUnet
+import sparseconvnet as scn
 
 
 class SemanticHeadLoss(nn.Module):
@@ -67,4 +68,16 @@ class SemanticSegmentation(Residual3DUnet):
         loss, head_logits, masks_dict = self.shared_step(batch)
         self.log('val/loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return {'head_logits': head_logits, **masks_dict}
+    
+    #######################################################
+    def training_epoch_end(self, outputs) -> None:
+        if not self.hparams.minkowski:
+            scn.forward_pass_multiplyAdd_count = 0
+            scn.forward_pass_hidden_states = 0
+            
+    def validation_epoch_end(self, outputs) -> None:
+        if not self.hparams.minkowski:
+            scn.forward_pass_multiplyAdd_count = 0
+            scn.forward_pass_hidden_states = 0
+    #######################################################
 

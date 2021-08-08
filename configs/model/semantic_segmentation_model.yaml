@@ -1,7 +1,10 @@
 _target_: src.models.semseg_model.SemanticSegmentation
 
 f_maps: 32
-sparse_backbone_type: Res16UNet34C
+# minkowski: True
+minkowski: False
+# sparse_backbone_type: Res16UNet34C
+sparse_backbone_type: SubmanifoldUNet
 conv1_kernel_size: 3
 in_channels: 1
 heads:
