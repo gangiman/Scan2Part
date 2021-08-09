@@ -12,7 +12,7 @@ from pytorch_lightning import LightningModule
 from src.models.sparse.res16unet import Res16UNet18A
 from src.models.sparse.res16unet import Res16UNet34C, Res16UNet34B
 from src.utils.poly_lr_decay import PolynomialLRDecay
-from src.submanifold.unet import SubmanifoldUNet
+from src.models.submanifold.unet import SubmanifoldUNet
 
 
 def stack_instance_dicts(test_list):
@@ -22,6 +22,13 @@ def stack_instance_dicts(test_list):
             res[key].append(sub[key])
     return res
 
+def prepare_batchIdx(batch_labels):
+    batchIdx = []
+    for idx, obj_dct in enumerate(batch_labels):
+        obj_length = len(obj_dct['semantic'])
+        batchIdx.append(torch.LongTensor(obj_length).fill_(idx))
+    batchIdx = torch.cat(batchIdx, 0)
+    return batchIdx
 
 class Residual3DUnet(LightningModule):
     def __init__(self,
@@ -54,8 +61,19 @@ class Residual3DUnet(LightningModule):
 
     def forward(self, batch):
         batch_coords, batch_features, batch_labels = batch
+        #######################################################
+        ### batchIdx -- to which object of the batch each feature point is related
+        if not self.hparams.minkowski:
+            batchIdx = prepare_batchIdx(batch_labels)
+        #######################################################
+#         print('\n#####################')
+#         print(len(batch_labels))
+#         print(batch_labels[0])
+#         print('#####################\n')
+
         batch_size = len(batch_labels)
         dict_of_lists = stack_instance_dicts(batch_labels)
+        
         #####################################################################################
         if self.hparams.minkowski:
             features = ME.SparseTensor(
@@ -65,7 +83,19 @@ class Residual3DUnet(LightningModule):
             sparse_embedded = self.model(features)
             embedded = [sparse_embedded.features_at(i) for i in range(batch_size)]
         else:
+            batch_coords = torch.cat([batch_coords, batchIdx.view(-1,1)], 1)
             embedded = self.model([batch_coords, batch_features])
+            
+#             print('\n#####################')
+#             print(batch_features.shape) # torch.Size([24862, 1])
+#             print(batch_features[:5])
+#             print(batch_coords.shape) # torch.Size([24862, 4])
+#             print(batch_coords[:5])
+#             print('---------------------------')
+#             print(batch_features.nelement()) # 24862
+#             print(batch_features.size(1)) # 1
+#             print(embedded.shape) # torch.Size([24862, 32])
+#             print('#####################\n')
         #####################################################################################    
         return embedded, dict_of_lists
 
