@@ -58,11 +58,13 @@ class RecursiveHeadLoss(nn.Module):
             masks = [torch.ones(_f.shape[0], dtype=torch.bool) for _f in features]
         logits = [self.final_layer(_features[_mask]) for _mask, _features in zip(masks, features)]
         target = batch[self.semantic_key]
+        masked_targets = [_target[_mask] for _mask, _target in zip(masks, target)]
+        mapped_label_targets = [self.label_mapping[_target] for _target in masked_targets]
         loss = torch.stack([
-            self.criterion(_logits, self.label_mapping[_target[_mask]])
-            for _mask, _logits, _target in zip(masks, logits, target)
+            self.criterion(_logits, _target)
+            for _logits, _target in zip(logits, mapped_label_targets)
         ]).sum()
-        full_logits = {f"{self.lod}_{self.set_id}": logits}
+        full_logits = {f"{self.lod}_{self.set_id}": (logits, mapped_label_targets, masked_targets)}
         if self.sub_heads is not None:
             for _k, _sub_head in self.sub_heads.items():
                 features_subset = []
@@ -111,40 +113,6 @@ class HierarchicalModel(Residual3DUnet):
         loss, head_logits, masks_dict = self.shared_step(batch)
         self.log('val/loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return {'head_logits': head_logits, **masks_dict}
-
-    def _forward(self, batch, batch_idx, compute_metrics=False):
-        base_batch, head_batch, index_batch, targets_batch = batch
-        loss = []
-        embedded = self.model(base_batch["input"])
-        for _num_head, (_loss, _final_layer, _cm) in enumerate(zip(self.loss, self.final_layer, self.confusion_matrix)):
-            _head = f"head_{_num_head}"
-            if _head in head_batch:
-                samples = head_batch[_head]
-                n_samples = samples.shape[0]
-                projection_logits = _final_layer(embedded[samples].permute(0, 2, 3, 4, 1))
-                for _logits, _index, _targets in zip(projection_logits, index_batch[_head], targets_batch[_head]):
-                    loss.append(_loss(_logits[_index], _targets) / n_samples)
-                    if compute_metrics:
-                        _cm.add(_logits[_index], _targets)
-        if loss:
-            return torch.stack(loss).mean()
-        else:
-            return torch.tensor(0.0)
-
-    def _validation_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        tensorboard_logs = {'val_loss': avg_loss}
-        for _head_id, _confusion_matrix in enumerate(self.confusion_matrix):
-            metrics = _confusion_matrix.compute_iou_metrics()
-            self.logger.experiment.add_figure(f'confusion_matrix_head_{_head_id}',
-                                              _confusion_matrix.plot_confusion_matrix(),
-                                              self.trainer.global_step,
-                                              close=True)
-            self.logger.experiment.add_text(f'iou_head_{_head_id}', str(metrics['iou']),
-                                            global_step=self.trainer.global_step)
-            tensorboard_logs[f'miou_head_{_head_id}'] = metrics['miou']
-            _confusion_matrix.reset()
-        return {'avg_val_loss': avg_loss, 'log': tensorboard_logs}
 
 
 class HierarchicalHeadModelForTesting(HierarchicalModel):
