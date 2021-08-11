@@ -1,16 +1,15 @@
-
 import json
 import pickle
-from typing import List, Dict
+from typing import List, Dict, Optional
+from collections import defaultdict
 
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
+
 from src.utils.hierarchy import ComputeHPredictions
 from src.datamodules.transforms import MapInstancesToSemanticLabels
 from src.models.lightning_model import Residual3DUnet
-
-
 
 
 class RecursiveHeadLoss(nn.Module):
@@ -31,27 +30,57 @@ class RecursiveHeadLoss(nn.Module):
         self.sub_heads = nn.ModuleDict()
         if children is not None and children:
             num_classes = len(children)
+            children = sorted(children, key=lambda x: int(x['set_id']))
+            self.num_classes = num_classes
             if num_classes > 1:
                 self.lod = lod
-                self.num_classes = num_classes
                 self.semantic_key = f"{semantic_key}_{lod}"
                 self.final_layer = nn.Linear(f_maps, num_classes, bias=False)
                 self.criterion = nn.CrossEntropyLoss()
-            if lod <= max_lod:
+                children_set_ids = torch.tensor([int(_child['set_id']) for _child in children])
+                label_mapping = torch.zeros(children_set_ids.max() + 1, dtype=torch.int64)
+                label_mapping[children_set_ids] = torch.arange(children_set_ids.shape[0])
+                self.label_mapping = label_mapping
+            if lod < max_lod:
                 for _child in children:
-                    self.sub_heads[f"{lod + 1}_{_child['set_id']}"] = RecursiveHeadLoss(
-                        **_child, lod=lod+1, max_lod=max_lod,
-                        semantic_key=semantic_key, f_maps=f_maps)
+                    if _child.get('children', False) and len(_child['children']) > 1:
+                        self.sub_heads[f"{lod + 1}_{_child['set_id']}"] = RecursiveHeadLoss(
+                            **_child, lod=lod+1, max_lod=max_lod,
+                            semantic_key=semantic_key, f_maps=f_maps)
+        if len(self.sub_heads) == 0:
+            self.sub_heads = None
 
-    def forward(self, features: List[torch.Tensor], batch: Dict[str, List[torch.Tensor]]):
-        logits = [self.final_layer(_features) for _features in features]
+    def forward(self,
+                features: List[torch.Tensor],
+                batch: Dict[str, List[torch.Tensor]],
+                masks: Optional[List[torch.Tensor]] = None):
+        if masks is None:
+            masks = [torch.ones(_f.shape[0], dtype=torch.bool) for _f in features]
+        logits = [self.final_layer(_features[_mask]) for _mask, _features in zip(masks, features)]
         target = batch[self.semantic_key]
         loss = torch.stack([
-            self.criterion(_logits, _target)
-            for _logits, _target in zip(logits, target)
+            self.criterion(_logits, self.label_mapping[_target[_mask]])
+            for _mask, _logits, _target in zip(masks, logits, target)
         ]).sum()
-        # masking by gt give to sublevel
-        return loss, logits
+        full_logits = {f"{self.lod}_{self.set_id}": logits}
+        if self.sub_heads is not None:
+            for _k, _sub_head in self.sub_heads.items():
+                features_subset = []
+                masks_subset = []
+                targets_subset = defaultdict(list)
+                set_id = int(_sub_head.set_id)
+                for _idx, _target in enumerate(target):
+                    if set_id in _target:
+                        features_subset.append(features[_idx])
+                        # masking by gt give to sub_level
+                        masks_subset.append(masks[_idx] & (set_id == _target))
+                        for _key, _targets in batch.items():
+                            targets_subset[_key].append(_targets[_idx])
+                if features_subset:
+                    sub_head_loss, sub_logits = _sub_head(features_subset, targets_subset, masks_subset)
+                    loss += sub_head_loss
+                    full_logits.update(sub_logits)
+        return loss, full_logits
 
 
 class HierarchicalModel(Residual3DUnet):
