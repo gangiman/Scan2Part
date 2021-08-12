@@ -75,14 +75,16 @@ def train(config: DictConfig) -> Optional[float]:
         logger=logger,
     )
 
-    # Train the model
-    log.info("Starting training!")
-    trainer.fit(model=model, datamodule=datamodule)
+    ckpt_path = config.trainer.get('resume_from_checkpoint')
+    if not ckpt_path:
+        # Train the model
+        log.info("Starting training!")
+        trainer.fit(model=model, datamodule=datamodule)
 
     # Evaluate model on test set after training
-    if not config.trainer.get("fast_dev_run"):
+    if not config.trainer.get("fast_dev_run") and ckpt_path:
         log.info("Starting testing!")
-        trainer.test()
+        trainer.test(ckpt_path=ckpt_path, datamodule=datamodule)
 
     # Make sure everything closed properly
     log.info("Finalizing!")

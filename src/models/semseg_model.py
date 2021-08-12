@@ -64,3 +64,6 @@ class SemanticSegmentation(Residual3DUnet):
         self.log('val/loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return {'head_logits': head_logits, **masks_dict}
 
+    def test_step(self, batch, batch_idx):
+        loss, head_logits, masks_dict = self.shared_step(batch)
+        return {'head_logits': head_logits, **masks_dict}
