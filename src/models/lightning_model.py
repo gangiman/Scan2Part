@@ -22,22 +22,6 @@ def stack_instance_dicts(test_list):
             res[key].append(sub[key])
     return res
 
-def prepare_batchIdx(batch_labels):
-    ### batchIdx -- to which object of the batch each feature point is related
-    batchIdx = []
-    for idx, obj_dct in enumerate(batch_labels):
-        obj_length = len(obj_dct['semantic'])
-        batchIdx.append(torch.LongTensor(obj_length).fill_(idx))
-    batchIdx = torch.cat(batchIdx, 0)
-    return batchIdx
-
-def slice_embeddings(embedded, batchIdx, batch_size):
-    sliced_embedded = []
-    for i in range(batch_size):
-        mask = batchIdx == i
-        sliced_embedded.append(embedded[mask])
-    return sliced_embedded
-
 class Residual3DUnet(LightningModule):
     def __init__(self,
                  sparse_backbone_type='Res16UNet34C',
@@ -82,10 +66,8 @@ class Residual3DUnet(LightningModule):
             sparse_embedded = self.model(features)
             embedded = [sparse_embedded.features_at(i) for i in range(batch_size)]
         else:
-            batch_coords = torch.index_select(batch_coords, 1, torch.LongTensor([1,2,3,0]).cuda())
-            embedded = self.model([batch_coords, batch_features])
-            batchIdx = prepare_batchIdx(batch_labels) # is used to slice resulting embeddings
-            embedded = slice_embeddings(embedded, batchIdx, batch_size)   
+            full_embedded = self.model([batch_coords[:, [1, 2, 3, 0]], batch_features])
+            embedded = [full_embedded[batch_coords[:,0]==_i, :] for _i in range(batch_size)]
         return embedded, dict_of_lists
 
     def configure_optimizers(self):
