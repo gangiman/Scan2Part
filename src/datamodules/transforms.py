@@ -146,23 +146,23 @@ class MapInstancesToSemanticLabels:
 
 
 class GetInstanceMaskForLoD:
-    def __init__(self, labels_mapping):
-        self.labels_mapping = labels_mapping
-        self.key = f"semantic_{labels_mapping}"
+    def __init__(self, semantic_key='semantic', instance_key='object'):
+        self.instance_key = instance_key
+        self.semantic_key = semantic_key
 
     def __call__(self, sample):
-        labels = sample[self.label_key]
-        sub_objects_mask = torch.zeros_like(labels, dtype=torch.long) # upd
-        _inst_id = 1
-        for _object_id in labels.unique(): # upd
-            if _object_id >= 0:
-                _object_mask = labels == _object_id
-                _uni_lod_parts = sample[self.key][_object_mask].unique()
-                for _uni_lod_part_id in _uni_lod_parts:
-                    sub_objects_mask[_object_mask * (sample[self.key] == _uni_lod_part_id)] = _inst_id
-                    _inst_id += 1
-        sample['objects'] = sub_objects_mask
-        sample['objects_size'] = torch.tensor(_inst_id - 1)
+        instance_labels = sample[self.instance_key]
+        sub_objects_mask = torch.zeros_like(instance_labels, dtype=torch.long)
+        semantic_labels = sample[self.semantic_key]
+        _inst_id = 0
+        for _object_id in instance_labels.unique():
+            _object_mask = instance_labels == _object_id
+            _uni_lod_parts = semantic_labels[_object_mask].unique()
+            for _uni_lod_part_id in _uni_lod_parts:
+                sub_objects_mask[_object_mask * (semantic_labels == _uni_lod_part_id)] = _inst_id
+                _inst_id += 1
+        sample[self.instance_key] = sub_objects_mask
+        sample[f'{self.instance_key}_size'] = torch.tensor(_inst_id)
         return sample
 
 

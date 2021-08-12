@@ -1,0 +1,51 @@
+# @package _global_
+
+# to execute this experiment run:
+# python run.py experiment=instseg_full.yaml
+
+defaults:
+  - override /trainer: ddp.yaml # choose trainer from 'configs/trainer/'
+  - override /model: instance_segmentation_model.yaml
+  - override /datamodule: scannet_dm_sparse.yaml
+  - override /callbacks: instseg.yaml
+  - override /logger: wandb.yaml
+  - override /transforms: null
+
+model:
+  in_channels: 4
+
+datamodule:
+  batch_size: 16
+  num_val_samples: 32
+
+trainer:
+  check_val_every_n_epoch: 10
+  max_epochs: 100
+
+callbacks:
+  log_intance_metrics_callback:
+    num_classes: 36
+    num_workers: 6
+    plot_3d_points_every_n: 16
+
+transforms:
+  transforms:
+    - _target_: src.datamodules.transforms.ToTensor
+      expand_dims: false
+    - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
+      labels_mapping: map_1800_2
+      mapping_file: /code/data/mappings/all_mappings_v4.csv
+      mapped_key: "semantic"
+      labels_key: "mask"
+      map_bg_to_value: -1
+    - _target_: src.datamodules.transforms.GetInstanceMaskForLoD
+      semantic_key: 'semantic'
+      instance_key: 'object'
+    - _target_: src.datamodules.transforms.PrepareSparseFeatures
+      keys_to_sparsify: [ 'semantic', 'object', 'object_size' ]
+      nnz_key: 'object'
+      add_color: true
+      bg_value: 0
+    - _target_: src.datamodules.transforms.ComputeInstanceMasks
+      max_num_of_instances_in_sample: 146
+      instance_mask: "object"

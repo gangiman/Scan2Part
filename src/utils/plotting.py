@@ -50,6 +50,7 @@ def plot_3d_points_as_k3d_html(coords, color):
 def plot_3d_voxels_as_k3d_html(coords, preds):
     if isinstance(coords, torch.Tensor):
         coords = coords.cpu().detach().numpy()
+    if isinstance(preds, torch.Tensor):
         preds = preds.cpu().detach().numpy()
     if len(preds.shape) > 1:
         preds = np.argmax(preds, axis=1)

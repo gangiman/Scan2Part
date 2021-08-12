@@ -6,6 +6,7 @@ import torch
 import numpy as np
 import pandas as pd
 import seaborn as sn
+from tqdm import tqdm
 from matplotlib import pyplot as plt
 from pytorch_lightning import Callback
 
@@ -69,8 +70,9 @@ class LogInstSegIoU(Callback):
         if self.ready:
             logger = get_wandb_logger(trainer=trainer)
             experiment = logger.experiment
-            for _i, (_coord, _embedded, _semantic, _instance_masks) in enumerate(zip(
-                    self.coords, self.embeddings, self.semantic_targets, self.instance_targets)):
+            for _i, (_coord, _embedded, _semantic, _instance_masks) in tqdm(enumerate(zip(
+                    self.coords, self.embeddings, self.semantic_targets, self.instance_targets
+            )), leave=False, total=len(self.coords), desc="Clustering embeddings"):
                 pred_instances = self.clustering_method.fit_predict(_embedded.cpu().numpy())
                 if self.plot_3d_points_every_n and (_i % self.plot_3d_points_every_n == 0):
                     html = plot_3d_voxels_as_k3d_html(_coord, pred_instances)
@@ -87,8 +89,8 @@ class LogInstSegIoU(Callback):
             }
             instances_pairs = pd.DataFrame(self.metrics.inst_tuples, columns=("true_ints_count", "pred_inst_count"))
             plt.figure(figsize=(12, 12))
-            instances_pairs.plot.scatter()
-            experiment.log({f"val/instance_pairs/{experiment.name}": wandb.Image(plt)}, commit=False)
+            instances_pairs.plot.scatter(x='true_ints_count', y='pred_inst_count')
+            experiment.log({f"val/instance_pairs": wandb.Image(plt)}, commit=False)
             experiment.log(metrics, commit=False)
             plt.clf()
             self.metrics.reset()
@@ -172,7 +174,7 @@ class LogConfusionMatrixAndMetrics(Callback):
             xticklabels=self.label_names
         )
         # names should be uniqe or else charts from different experiments in wandb will overlap
-        self.experiment.log({f"confusion_matrix/{self.experiment.name}": wandb.Image(plt)}, commit=False)
+        self.experiment.log({f"val/confusion_matrix": wandb.Image(plt)}, commit=False)
         # according to wandb docs this should also work but it crashes
         # experiment.log(f{"confusion_matrix/{experiment.name}": plt})
         # reset plot
@@ -203,6 +205,6 @@ class LogConfusionMatrixAndMetrics(Callback):
             xticklabels=self.label_names
         )
         # names should be uniqe or else charts from different experiments in wandb will overlap
-        self.experiment.log({f"f1_p_r_heatmap/{self.experiment.name}": wandb.Image(plt)}, commit=False)
+        self.experiment.log({f"val/f1_p_r_heatmap": wandb.Image(plt)}, commit=False)
         # reset plot
         plt.clf()

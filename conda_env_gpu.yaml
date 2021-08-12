@@ -12,5 +12,7 @@ dependencies:
   - pytorch=1.8.1
   - torchvision=0.9.1
   - openblas-devel
+  - k3d
+  - msgpack-python
   - pip:
       - -r requirements.txt
