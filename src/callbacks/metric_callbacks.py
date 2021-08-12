@@ -126,8 +126,8 @@ class LogConfusionMatrixAndMetrics(Callback):
             ])
             self.preds.extend(outputs['head_logits'][0])
             ############################################################
-#             self.targets.extend(outputs['semantic'])
-            self.targets.extend(torch.cat(outputs['semantic'], 0)) # modified for SparseConvNets
+            self.targets.extend(outputs['semantic'])
+#             self.targets.extend(torch.cat(outputs['semantic'], 0)) # modified for SparseConvNets
             ############################################################
             
 #             print('\n#############################')
@@ -144,10 +144,10 @@ class LogConfusionMatrixAndMetrics(Callback):
             self.experiment = logger.experiment
             
             #######################################################
-#             preds = torch.cat(self.preds).cpu().numpy()
-#             targets = torch.cat(self.targets).cpu().numpy()
-            preds = torch.stack(self.preds).cpu().numpy() # modified for SparseConvNets
-            targets = np.array(self.targets) # modified for SparseConvNets
+            preds = torch.cat(self.preds).cpu().numpy()
+            targets = torch.cat(self.targets).cpu().numpy()
+#             preds = torch.stack(self.preds).cpu().numpy() # modified for SparseConvNets
+#             targets = np.array(self.targets) # modified for SparseConvNets
     
 #             print('\n#############################')
 #             print('on_validation_epoch_end:')

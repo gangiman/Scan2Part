@@ -22,16 +22,14 @@ import numpy as np
 
 
 class SubmanifoldUNet(nn.Module):
-    def __init__(self, m=32, residual_blocks=False, block_reps=1, dimension=4, full_scale=4096):
+    def __init__(self, m=32, residual_blocks=False, block_reps=1, dimension=3, full_scale=4096, in_channels=1):
         nn.Module.__init__(self)
         
-#         self.inp_layer = scn.InputLayer(dimension, spatial_size=full_scale, mode=4)
         self.inp_layer = scn.InputLayer(dimension, spatial_size=full_scale, mode=4)
         ### Takes a tuple (coords, features, batch_size [optional])
-        ### coords: N x (dimension+1)  (first d columns are coordinates, last column is batch index)
+        ### coords: N x (dimension + 1)  (first d columns are coordinates, last column is batch index)
         
-        self.subm_conv = scn.SubmanifoldConvolution(dimension, 1, m, 3, False)
-#         self.subm_conv = scn.SubmanifoldConvolution(dimension, 3, m, 3, False)
+        self.subm_conv = scn.SubmanifoldConvolution(dimension, in_channels, m, 3, False)
         ### dimension, nIn, nOut, filter_size, bias
         
         self.unet = scn.UNet(dimension, block_reps, [m, 2*m, 3*m, 4*m, 5*m, 6*m, 7*m], residual_blocks)

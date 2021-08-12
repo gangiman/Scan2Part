@@ -23,12 +23,20 @@ def stack_instance_dicts(test_list):
     return res
 
 def prepare_batchIdx(batch_labels):
+    ### batchIdx -- to which object of the batch each feature point is related
     batchIdx = []
     for idx, obj_dct in enumerate(batch_labels):
         obj_length = len(obj_dct['semantic'])
         batchIdx.append(torch.LongTensor(obj_length).fill_(idx))
     batchIdx = torch.cat(batchIdx, 0)
     return batchIdx
+
+def slice_embeddings(embedded, batchIdx, batch_size):
+    sliced_embedded = []
+    for i in range(batch_size):
+        mask = batchIdx == i
+        sliced_embedded.append(embedded[mask])
+    return sliced_embedded
 
 class Residual3DUnet(LightningModule):
     def __init__(self,
@@ -62,13 +70,12 @@ class Residual3DUnet(LightningModule):
     def forward(self, batch):
         batch_coords, batch_features, batch_labels = batch
         #######################################################
-        ### batchIdx -- to which object of the batch each feature point is related
         if not self.hparams.minkowski:
-            batchIdx = prepare_batchIdx(batch_labels)
+            batchIdx = prepare_batchIdx(batch_labels) # is used to slice resulting embeddings
         #######################################################
 #         print('\n#####################')
 #         print(len(batch_labels))
-#         print(batch_labels[0])
+#         print(len(batch_labels[0]['semantic']))
 #         print('#####################\n')
 
         batch_size = len(batch_labels)
@@ -83,19 +90,26 @@ class Residual3DUnet(LightningModule):
             sparse_embedded = self.model(features)
             embedded = [sparse_embedded.features_at(i) for i in range(batch_size)]
         else:
-            batch_coords = torch.cat([batch_coords, batchIdx.view(-1,1)], 1)
+#             batch_coords = torch.cat([batch_coords, batchIdx.view(-1,1)], 1)
+#             batch_coords = torch.gather(batch_coords, 1, torch.tensor([1,2,3,0])) # the first column is batchIdx (???)
+            batch_coords = torch.index_select(batch_coords, 1, torch.LongTensor([1,2,3,0]))
             embedded = self.model([batch_coords, batch_features])
+            embedded = slice_embeddings(embedded, batchIdx, batch_size)
             
-#             print('\n#####################')
-#             print(batch_features.shape) # torch.Size([24862, 1])
-#             print(batch_features[:5])
-#             print(batch_coords.shape) # torch.Size([24862, 4])
-#             print(batch_coords[:5])
-#             print('---------------------------')
-#             print(batch_features.nelement()) # 24862
-#             print(batch_features.size(1)) # 1
-#             print(embedded.shape) # torch.Size([24862, 32])
-#             print('#####################\n')
+#         print('\n#####################')
+#         print(batch_features.shape) # torch.Size([24862, 1])
+#         print(batch_features[:5])
+#         print(batch_coords.shape) # torch.Size([24862, 4])
+#         print(batch_coords[:5])
+#         print(batch_coords[:, -1].min())
+#         print(batch_coords[:, -1].max())
+#         print('---------------------------')
+#         print(batch_features.nelement()) # 24862
+#         print(batch_features.size(1)) # 1
+#         print(embedded.shape) # torch.Size([24862, 32])
+#         print(len(embedded))
+#         print(embedded[0].shape)
+#         print('#####################\n')
         #####################################################################################    
         return embedded, dict_of_lists
 

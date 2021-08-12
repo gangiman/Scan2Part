@@ -34,12 +34,14 @@ class SemanticHeadLoss(nn.Module):
         self.criterion = nn.CrossEntropyLoss(weight=weights)
 
     def forward(self, features: List[torch.Tensor], batch: Dict[str, List[torch.Tensor]]):
+        ############################################################
         if self.minkowski:
             logits = [self.final_layer(_features) for _features in features]
         else:
-            logits = self.final_layer(features)
+            logits = [self.final_layer(_features) for _features in features]
+#             logits = self.final_layer(features)
         target = batch[self.semantic_key]
-        ############################################################
+
 #         print('\n#############################')
 #         print(len(logits)) # 26861
 #         print(logits[0].shape) # 13
@@ -55,13 +57,18 @@ class SemanticHeadLoss(nn.Module):
             ]).sum(), logits
         else:
             ################################################################
-            target = torch.cat(target, 0)
-            print('\n#############################')
-            print('forward:')
-            print(len(target))
-            print(len(logits))
-            print('#############################\n')
-            return self.loss_weight * self.criterion(logits, target), logits
+#             target = torch.cat(target, 0)
+#             print('\n#############################')
+#             print('forward:')
+#             print(len(target))
+#             print(len(logits))
+#             print('#############################\n')
+#             return self.loss_weight * self.criterion(logits, target), logits
+
+            return self.loss_weight * torch.stack([
+                self.criterion(_logits, _target)
+                for _logits, _target in zip(logits, target)
+            ]).sum(), logits
             ################################################################
 
 class SemanticSegmentation(Residual3DUnet):
