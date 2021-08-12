@@ -5,8 +5,8 @@
 
 defaults:
   - override /trainer: debug.yaml # choose trainer from 'configs/trainer/'
-  - override /model: semantic_segmentation_model.yaml
-  - override /datamodule: scannet_debug.yaml
+  - override /model: semantic_segmentation_submanifold.yaml
+  - override /datamodule: scannet_dm_sparse.yaml
   - override /callbacks: semseg.yaml
-  - override /logger: wandb.yaml
-  - override /transforms: semseg.yaml
+  - override /logger: null
+  - override /transforms: semseg_sparse.yaml

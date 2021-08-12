@@ -12,6 +12,7 @@ from pytorch_lightning import LightningModule
 from src.models.sparse.res16unet import Res16UNet18A
 from src.models.sparse.res16unet import Res16UNet34C, Res16UNet34B
 from src.utils.poly_lr_decay import PolynomialLRDecay
+from src.models.submanifold.unet import SubmanifoldUNet
 
 
 def stack_instance_dicts(test_list):
@@ -21,13 +22,14 @@ def stack_instance_dicts(test_list):
             res[key].append(sub[key])
     return res
 
-
 class Residual3DUnet(LightningModule):
     def __init__(self,
                  sparse_backbone_type='Res16UNet34C',
                  in_channels=1,
                  f_maps=32,
                  conv1_kernel_size=3,
+                 subm_residual_blocks=False,
+                 subm_block_reps=1,
                  **kwargs):
         super().__init__()
         self.save_hyperparameters()
@@ -44,19 +46,28 @@ class Residual3DUnet(LightningModule):
             self.model = Res16UNet34B(
                 in_channels, f_maps,
                 Namespace(bn_momentum=0.05, conv1_kernel_size=conv1_kernel_size))
+        elif sparse_backbone_type == 'SubmanifoldUNet':
+            self.model = SubmanifoldUNet(in_channels, f_maps, subm_residual_blocks,
+                                         subm_block_reps)
         else:
             raise AssertionError(f"Unknown backbone type {sparse_backbone_type}")
 
     def forward(self, batch):
         batch_coords, batch_features, batch_labels = batch
-        features = ME.SparseTensor(
-            batch_features,
-            coordinates=batch_coords,
-            device=batch_features.device)
+
         batch_size = len(batch_labels)
         dict_of_lists = stack_instance_dicts(batch_labels)
-        sparse_embedded = self.model(features)
-        embedded = [sparse_embedded.features_at(i) for i in range(batch_size)]
+        
+        if self.hparams.sparse_backbone_type != 'SubmanifoldUNet':
+            features = ME.SparseTensor(
+                batch_features,
+                coordinates=batch_coords,
+                device=batch_features.device)
+            sparse_embedded = self.model(features)
+            embedded = [sparse_embedded.features_at(i) for i in range(batch_size)]
+        else:
+            full_embedded = self.model([batch_coords[:, [1, 2, 3, 0]], batch_features])
+            embedded = [full_embedded[batch_coords[:,0]==_i, :] for _i in range(batch_size)]
         return embedded, dict_of_lists
 
     def configure_optimizers(self):
