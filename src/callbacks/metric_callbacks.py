@@ -185,12 +185,14 @@ class LogConfusionMatrixAndMetrics(Callback):
         f1 = f1_score(preds, targets, labels=label_ids, average=None)
         r = recall_score(preds, targets, labels=label_ids, average=None)
         p = precision_score(preds, targets, labels=label_ids, average=None)
+        data = [f1, p, r]
+        df = pd.DataFrame({'f1_score': f1, 'precision': p, 'recall': r}, index=self.label_names)
         self.experiment.log({
             'val/precision': p.mean(),
             'val/recall': r.mean(),
             'val/f1': f1.mean(),
+            'val/table': wandb.Table(dataframe=df)
         }, commit=False)
-        data = [f1, p, r]
         # set figure size
         plt.figure(figsize=(14, 8))
         # set labels size

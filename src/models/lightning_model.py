@@ -12,7 +12,10 @@ from pytorch_lightning import LightningModule
 from src.models.sparse.res16unet import Res16UNet18A
 from src.models.sparse.res16unet import Res16UNet34C, Res16UNet34B
 from src.utils.poly_lr_decay import PolynomialLRDecay
-from src.models.submanifold.unet import SubmanifoldUNet
+try:
+    from src.models.submanifold.unet import SubmanifoldUNet
+except ImportError:
+    pass
 
 
 def stack_instance_dicts(test_list):
@@ -21,6 +24,7 @@ def stack_instance_dicts(test_list):
         for key in sub:
             res[key].append(sub[key])
     return res
+
 
 class Residual3DUnet(LightningModule):
     def __init__(self,
