@@ -1,24 +1,19 @@
-#- _target_: src.datamodules.transforms.RandomFlip
-#  axes: [1, 2]
-#- _target_: src.datamodules.transforms.RandomRotate90
-#  axes: [1, 2]
-#- _target_: src.datamodules.transforms.RandomRotate
-#  axes: [[2, 1]]
-#- _target_: src.datamodules.transforms.ElasticDeformation
-#  execution_probability: 0.3
-- _target_: src.datamodules.transforms.ToTensor
-  expand_dims: false
-- _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
-  labels_mapping: map_1800_1
-  mapping_file: /code/data/mappings/all_mappings_v4.csv
-  mapped_key: "semantic"
-  sparse: True
-- _target_: src.datamodules.transforms.NormalizeInstanceLabels
-  instance_label_key: "objects"
-- _target_: src.datamodules.transforms.ToSparse
-  keys_to_sparsify: ['semantic', 'objects', 'objects_size']
-  nnz_key: 'objects'
-  bg_value: 0
-- _target_: src.datamodules.transforms.ComputeInstanceMasks
-  max_num_of_instances_in_sample: 40
-  instance_mask: "objects"
+transforms:
+  - _target_: src.datamodules.transforms.ToTensor
+    expand_dims: false
+  - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
+    labels_mapping: map_1800_1
+    mapping_file: /code/data/mappings/all_mappings_v4.csv
+    mapped_key: "semantic"
+    labels_key: "mask"
+    map_bg_to_value: -1
+  - _target_: src.datamodules.transforms.NormalizeInstanceLabels
+    instance_label_key: "object"
+  - _target_: src.datamodules.transforms.PrepareSparseFeatures
+    keys_to_sparsify: ['semantic', 'object', 'object_size']
+    nnz_key: 'object'
+    add_color: true
+    bg_value: 0
+  - _target_: src.datamodules.transforms.ComputeInstanceMasks
+    max_num_of_instances_in_sample: 40
+    instance_mask: "object"

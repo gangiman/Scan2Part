@@ -101,7 +101,7 @@ class InstanceSegmentation(Residual3DUnet):
 
     def shared_step(self, batch):
         embedded, dict_of_lists = self.forward(batch)
-        loss = self.loss(embedded, dict_of_lists['objects'], dict_of_lists['objects_size'])
+        loss = self.loss(embedded, dict_of_lists['object'], dict_of_lists['object_size'])
         return loss, embedded, dict_of_lists
 
     def training_step(self, batch, batch_idx):

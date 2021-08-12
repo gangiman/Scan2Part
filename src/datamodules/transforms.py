@@ -414,6 +414,9 @@ class PrepareSparseFeatures:
         output = {}
         for _key in self.keys_to_sparsify:
             labels = sample[_key]
-            output[_key] = labels[nnz_index]
+            if labels.ndim > 1:
+                output[_key] = labels[nnz_index]
+            else:
+                output[_key] = labels
 
         return coordinates, features, output

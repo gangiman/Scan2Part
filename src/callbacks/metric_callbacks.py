@@ -52,7 +52,7 @@ class LogInstSegIoU(Callback):
         """Gather data from single batch."""
         if self.ready:
             for _i, (_embedded, _semantic, _instance_masks) in enumerate(zip(
-                    outputs['embedded'], outputs['semantic'], outputs['objects'])):
+                    outputs['embedded'], outputs['semantic'], outputs['object'])):
                 pred_instances = self.clustering_method.fit_predict(_embedded.cpu().numpy())
                 if self.plot_3d_points_every_n and ((_i * batch_idx) % self.plot_3d_points_every_n == 0):
                     self._make_3d_points_plot(batch, _i, pred_instances, batch_idx)
