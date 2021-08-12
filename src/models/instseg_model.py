@@ -115,36 +115,5 @@ class InstanceSegmentation(Residual3DUnet):
         return {'embedded': embedded, **masks_dict}
 
     def test_step(self, batch, batch_idx):
-        embeddings = self.model(batch['input'])
-        _predictions = batch.copy()
-        _predictions['scene_id'] = batch_idx
-        _embedding = embeddings[0]
-        _semantic = batch[f'semantic_{self.hparams.labels_mapping}'][0]
-        _full_size_pred = torch.zeros_like(_semantic)
-        _instance = batch[self.hparams.instance_mask][0]
-
-        _instance[_semantic == 0] = 0
-        semantic_nnz_idx = _semantic > 0
-        truth_inst_masks = _instance[_instance > 0]
-        nnz_feat = _embedding[:, semantic_nnz_idx].T
-        semantic_prediction = _semantic[semantic_nnz_idx]
-        nnz_feat, semantic_prediction, truth_inst_masks = [
-            _tensor.cpu().numpy() for _tensor in
-            (nnz_feat, semantic_prediction, truth_inst_masks)]
-        pred_instances = self.clustering_method.fit_predict(nnz_feat)
-        _full_size_pred[semantic_nnz_idx] = torch.tensor(pred_instances, device=_semantic.device) + 1
-        _predictions['prediction'] = _full_size_pred
-        self.metrics.update_rates(pred_instances, semantic_prediction, truth_inst_masks)
-        if self.predictions is not None:
-            self.predictions.append(to_cpu(_predictions))
-        else:
-            del _predictions
-
-    def test_epoch_end(self, outputs):
-        self.metrics.compute_metrics(metrics_file=self.hparams.metrics_file)
-        self.metrics.reset()
-        if self.hparams.predictions_file:
-            file_name = self.hparams.predictions_file
-            with open(file_name, 'wb+') as f:
-                pickle.dump(self.predictions, f)
-        return {}
+        embedded, masks_dict = self.forward(batch)
+        return {'embedded': embedded, **masks_dict}

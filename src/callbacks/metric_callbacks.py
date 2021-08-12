@@ -38,6 +38,10 @@ class LogInstSegIoU(Callback):
                                            n_jobs=num_workers or None)
         self.ready = True
         self.plot_3d_points_every_n = plot_3d_points_every_n
+        self.coords = []
+        self.embeddings = []
+        self.semantic_targets = []
+        self.instance_targets = []
 
     def on_sanity_check_start(self, trainer, pl_module):
         self.ready = False
@@ -51,46 +55,47 @@ class LogInstSegIoU(Callback):
     ):
         """Gather data from single batch."""
         if self.ready:
-            for _i, (_embedded, _semantic, _instance_masks) in enumerate(zip(
-                    outputs['embedded'], outputs['semantic'], outputs['object'])):
-                pred_instances = self.clustering_method.fit_predict(_embedded.cpu().numpy())
-                if self.plot_3d_points_every_n and ((_i * batch_idx) % self.plot_3d_points_every_n == 0):
-                    self._make_3d_points_plot(batch, _i, pred_instances, batch_idx)
-                self.metrics.update_rates(
-                    pred_instances,
-                    _semantic.cpu().numpy(),
-                    _instance_masks.nonzero()[:, 1].cpu().numpy())
-
-    @staticmethod
-    def _make_3d_points_plot(batch, _i, pred_instances, batch_idx):
-        batch_coords = batch[0]
-        max_instance_id = pred_instances.max()
-        colors = plt.cm.jet(pred_instances/max_instance_id, bytes=True)[:, :3]
-        xyz = batch_coords[batch_coords[:, 0] == _i, 1:].cpu().numpy()
-        pred_point_cloud = np.concatenate([xyz, colors], axis=1)
-        wandb.log({f"val/point_cloud_{_i * batch_idx}": wandb.Object3D(pred_point_cloud)})
+            batch_coords = batch[0]
+            self.coords.extend([
+                batch_coords[batch_coords[:, 0] == _i, 1:]
+                for _i in range(batch_coords[:, 0].max() + 1)
+            ])
+            self.embeddings.extend(outputs['embedded'])
+            self.semantic_targets.extend(outputs['semantic'])
+            self.instance_targets.extend(outputs['object'])
 
     def on_validation_epoch_end(self, trainer, pl_module):
         """Generate f1, precision and recall heatmap."""
         if self.ready:
             logger = get_wandb_logger(trainer=trainer)
             experiment = logger.experiment
+            for _i, (_coord, _embedded, _semantic, _instance_masks) in enumerate(zip(
+                    self.coords, self.embeddings, self.semantic_targets, self.instance_targets)):
+                pred_instances = self.clustering_method.fit_predict(_embedded.cpu().numpy())
+                if self.plot_3d_points_every_n and (_i % self.plot_3d_points_every_n == 0):
+                    html = plot_3d_voxels_as_k3d_html(_coord, pred_instances)
+                    experiment.log({f"val/k3d_voxels_{_i}": wandb.Html(html)})
+                self.metrics.update_rates(
+                    pred_instances,
+                    _semantic.cpu().numpy(),
+                    _instance_masks.nonzero()[:, 1].cpu().numpy())
+
             df, mAP, mIoU = self.metrics.compute_metrics()
             metrics = {
                 'val/mAP': mAP, 'val/mIoU': mIoU,
                 'val/PR': wandb.Table(dataframe=df.T)
             }
-            # fig = plt.figure(figsize=(12, 12))
-            # sns.jointplot(
-            #     x="true_ints_count", y="pred_inst_count",
-            #     data=pd.DataFrame(
-            #         self.metrics.inst_tuples,
-            #         columns=("true_ints_count", "pred_inst_count")
-            #     ), kind="reg")
-            # metrics[f"val/instance_pairs"] = fig
+            instances_pairs = pd.DataFrame(self.metrics.inst_tuples, columns=("true_ints_count", "pred_inst_count"))
+            plt.figure(figsize=(12, 12))
+            instances_pairs.plot.scatter()
+            experiment.log({f"val/instance_pairs/{experiment.name}": wandb.Image(plt)}, commit=False)
             experiment.log(metrics, commit=False)
             plt.clf()
             self.metrics.reset()
+            self.coords.clear()
+            self.embeddings.clear()
+            self.semantic_targets.clear()
+            self.instance_targets.clear()
 
 
 class LogConfusionMatrixAndMetrics(Callback):

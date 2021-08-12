@@ -85,22 +85,30 @@ class ScannetDataModule(LightningDataModule):
             limit = getattr(self.hparams, 'limit', None)
             train_df_read = train_df_read.iloc[:limit]
             assert train_df_read.shape[0] > self.hparams.num_val_samples
-            num_workers = max(1, self.hparams.num_workers)
-            data_files = [
-                tuple(self.hparams.data_dir / Path(_path) for _path in _paths)
-                for _paths in train_df_read.itertuples(name=None, index=False)]
+        elif stage == 'test':
+            train_df_read = pd.read_csv(self.hparams.test_file, header=None, index_col=False)
+        else:
+            raise NotImplementedError()
 
-            with concurrent.futures.ProcessPoolExecutor(num_workers) as executor:
-                for _sample in tqdm(executor.map(self.load_fn, data_files), total=len(data_files),
-                                    leave=False, desc="Loading data files"):
-                    self.data.append(_sample)
+        num_workers = max(1, self.hparams.num_workers)
+        data_files = [
+            tuple(self.hparams.data_dir / Path(_path) for _path in _paths)
+            for _paths in train_df_read.itertuples(name=None, index=False)]
 
-            dataset = self.dataset_class(
-                self.data, transforms=self.hparams.transforms)
+        with concurrent.futures.ProcessPoolExecutor(num_workers) as executor:
+            for _sample in tqdm(executor.map(self.load_fn, data_files), total=len(data_files),
+                                leave=False, desc="Loading data files"):
+                self.data.append(_sample)
 
+        dataset = self.dataset_class(
+            self.data, transforms=self.hparams.transforms)
+
+        if stage == 'fit':
             self.data_train, self.data_val = random_split(
                 dataset, (train_df_read.shape[0] - self.hparams.num_val_samples, self.hparams.num_val_samples)
             )
+        else:
+            self.data_test = dataset
 
     def train_dataloader(self):
         return DataLoader(
@@ -116,6 +124,16 @@ class ScannetDataModule(LightningDataModule):
     def val_dataloader(self):
         return DataLoader(
             dataset=self.data_val,
+            batch_size=self.hparams.batch_size,
+            num_workers=self.hparams.num_workers,
+            pin_memory=self.hparams.pin_memory,
+            collate_fn=batch_sparse_collate,
+            shuffle=False,
+        )
+
+    def test_dataloader(self):
+        return DataLoader(
+            dataset=self.data_test,
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
