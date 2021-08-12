@@ -151,12 +151,12 @@ class InstanceSegmentation(Residual3DUnet):
     
     #######################################################
     def training_epoch_end(self, outputs) -> None:
-        if not self.hparams.minkowski:
+        if self.hparams.sparse_backbone_type == 'SubmanifoldUNet':
             scn.forward_pass_multiplyAdd_count = 0
             scn.forward_pass_hidden_states = 0
             
     def validation_epoch_end(self, outputs) -> None:
-        if not self.hparams.minkowski:
+        if self.hparams.sparse_backbone_type == 'SubmanifoldUNet':
             scn.forward_pass_multiplyAdd_count = 0
             scn.forward_pass_hidden_states = 0
     #######################################################

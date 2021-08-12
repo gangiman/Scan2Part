@@ -16,7 +16,6 @@ class SemanticHeadLoss(nn.Module):
             weight_mode: str = 'median',
             class_weights_file: Optional[str] = None,
             f_maps: int = 32,
-            minkowski: bool = False,
             **kwargs
     ):
         super().__init__()
@@ -25,7 +24,6 @@ class SemanticHeadLoss(nn.Module):
         else:
             class_counts = torch.tensor(np.load(class_weights_file))
             weights = getattr(class_counts, weight_mode)() / class_counts.to(torch.float)
-        self.minkowski = minkowski
         self.loss_weight = loss_weight
         self.semantic_key = semantic_key
         self.final_layer = nn.Linear(f_maps, num_classes, bias=False)
@@ -43,7 +41,7 @@ class SemanticSegmentation(Residual3DUnet):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.heads = nn.ModuleList([
-            SemanticHeadLoss(**_head, f_maps=self.hparams.f_maps, minkowski=self.hparams.minkowski)
+            SemanticHeadLoss(**_head, f_maps=self.hparams.f_maps)
             for _head in self.hparams.heads])
 
     def shared_step(self, batch):
@@ -67,11 +65,11 @@ class SemanticSegmentation(Residual3DUnet):
         return {'head_logits': head_logits, **masks_dict}
     
     def training_epoch_end(self, outputs) -> None:
-        if not self.hparams.minkowski:
+        if self.hparams.sparse_backbone_type == 'SubmanifoldUNet':
             scn.forward_pass_multiplyAdd_count = 0
             scn.forward_pass_hidden_states = 0
             
     def validation_epoch_end(self, outputs) -> None:
-        if not self.hparams.minkowski:
+        if self.hparams.sparse_backbone_type == 'SubmanifoldUNet':
             scn.forward_pass_multiplyAdd_count = 0
             scn.forward_pass_hidden_states = 0
