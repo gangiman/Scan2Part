@@ -60,28 +60,19 @@ class Residual3DUnet(LightningModule):
             self.model = Res16UNet34B(
                 in_channels, f_maps,
                 Namespace(bn_momentum=0.05, conv1_kernel_size=conv1_kernel_size))
-        #####################################################################################
         elif sparse_backbone_type == 'SubmanifoldUNet':
             self.model = SubmanifoldUNet()
-        #####################################################################################
         else:
             raise AssertionError(f"Unknown backbone type {sparse_backbone_type}")
 
     def forward(self, batch):
         batch_coords, batch_features, batch_labels = batch
-        #######################################################
         if not self.hparams.minkowski:
             batchIdx = prepare_batchIdx(batch_labels) # is used to slice resulting embeddings
-        #######################################################
-#         print('\n#####################')
-#         print(len(batch_labels))
-#         print(len(batch_labels[0]['semantic']))
-#         print('#####################\n')
 
         batch_size = len(batch_labels)
         dict_of_lists = stack_instance_dicts(batch_labels)
         
-        #####################################################################################
         if self.hparams.minkowski:
             features = ME.SparseTensor(
                 batch_features,
@@ -90,27 +81,9 @@ class Residual3DUnet(LightningModule):
             sparse_embedded = self.model(features)
             embedded = [sparse_embedded.features_at(i) for i in range(batch_size)]
         else:
-#             batch_coords = torch.cat([batch_coords, batchIdx.view(-1,1)], 1)
-#             batch_coords = torch.gather(batch_coords, 1, torch.tensor([1,2,3,0])) # the first column is batchIdx (???)
-            batch_coords = torch.index_select(batch_coords, 1, torch.LongTensor([1,2,3,0]))
+            batch_coords = torch.index_select(batch_coords, 1, torch.LongTensor([1,2,3,0]).cuda())
             embedded = self.model([batch_coords, batch_features])
-            embedded = slice_embeddings(embedded, batchIdx, batch_size)
-            
-#         print('\n#####################')
-#         print(batch_features.shape) # torch.Size([24862, 1])
-#         print(batch_features[:5])
-#         print(batch_coords.shape) # torch.Size([24862, 4])
-#         print(batch_coords[:5])
-#         print(batch_coords[:, -1].min())
-#         print(batch_coords[:, -1].max())
-#         print('---------------------------')
-#         print(batch_features.nelement()) # 24862
-#         print(batch_features.size(1)) # 1
-#         print(embedded.shape) # torch.Size([24862, 32])
-#         print(len(embedded))
-#         print(embedded[0].shape)
-#         print('#####################\n')
-        #####################################################################################    
+            embedded = slice_embeddings(embedded, batchIdx, batch_size)   
         return embedded, dict_of_lists
 
     def configure_optimizers(self):

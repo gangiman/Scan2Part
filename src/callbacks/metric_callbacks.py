@@ -125,17 +125,7 @@ class LogConfusionMatrixAndMetrics(Callback):
                 for _i in range(batch_coords[:, 0].max() + 1)
             ])
             self.preds.extend(outputs['head_logits'][0])
-            ############################################################
             self.targets.extend(outputs['semantic'])
-#             self.targets.extend(torch.cat(outputs['semantic'], 0)) # modified for SparseConvNets
-            ############################################################
-            
-#             print('\n#############################')
-#             print('on_validation_batch_end:')
-#             print(outputs['head_logits'][0].shape)
-#             print(len(outputs['semantic']))
-#             print(torch.cat(outputs['semantic'], 0).shape)
-#             print('#############################\n')
 
     def on_validation_epoch_end(self, trainer, pl_module):
         """Generate confusion matrix."""
@@ -143,18 +133,9 @@ class LogConfusionMatrixAndMetrics(Callback):
             logger = get_wandb_logger(trainer)
             self.experiment = logger.experiment
             
-            #######################################################
             preds = torch.cat(self.preds).cpu().numpy()
             targets = torch.cat(self.targets).cpu().numpy()
-#             preds = torch.stack(self.preds).cpu().numpy() # modified for SparseConvNets
-#             targets = np.array(self.targets) # modified for SparseConvNets
-    
-#             print('\n#############################')
-#             print('on_validation_epoch_end:')
-#             print(preds.shape)
-#             print(targets.shape)
-#             print('#############################\n')
-            #######################################################
+
             if len(preds.shape) > 1:
                 preds = np.argmax(preds, axis=1)
             label_ids = list(range(len(self.label_names)))
@@ -169,12 +150,6 @@ class LogConfusionMatrixAndMetrics(Callback):
             self.targets.clear()
 
     def plot_confusion_matrix(self, targets, preds, label_ids):
-#         print('\n#############################')
-#         print('plot_confusion_matrix:')
-#         print(targets.shape)
-#         print(preds.shape)
-#         print(len(label_ids))
-#         print('#############################\n')
         confusion_matrix = metrics.confusion_matrix(
             y_true=targets,
             y_pred=preds,
