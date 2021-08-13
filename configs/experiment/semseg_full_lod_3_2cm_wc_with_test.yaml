@@ -6,49 +6,39 @@
 defaults:
   - override /trainer: ddp.yaml # choose trainer from 'configs/trainer/'
   - override /model: semantic_segmentation_model.yaml
-  - override /datamodule: scannet_dm_sparse.yaml
-  - override /callbacks: default.yaml
+  - override /datamodule: scannet_dm_sparse_2cm.yaml
+  - override /callbacks: semseg.yaml
   - override /logger: wandb.yaml
   - override /transforms: null
 
 logger:
   wandb:
-    name: 'semseg_lod_2_wc_with_test'
-
-
-datamodule:
-  batch_size: 32
+    name: 'semseg_lod_3_2cm_wc_test'
 
 trainer:
-  max_epochs: 100
+  gpus: 4
+  max_epochs: 200
 
 callbacks:
   log_confusion_matrix:
-    _target_: src.callbacks.metric_callbacks.LogConfusionMatrixAndMetrics
-    label_names: /code/data/label_names/map_1800_2.csv
-    plot_3d_points_every_n: 16
-    head_id: 0
-    semantic_key: 'semantic'
+    label_names: /code/data/label_names/map_1800_3.csv
   test_semseg_callback:
-    _target_: src.callbacks.metric_callbacks.TestingSemSeg
-    label_names: /code/data/label_names/map_1800_2.csv
-    plot_3d_points_every_n: 50
+    label_names: /code/data/label_names/map_1800_3.csv
 
 model:
-  in_channels: 1
   heads:
-    - num_classes: 36
+    - num_classes: 79
       loss_weight: 1.0
       semantic_key: 'semantic'
       weight_mode: 'median' # in ('min', 'mean', 'median', 'max')
-      class_weights_file: /code/data/weights/scannet_map_1800_2.npy
+      class_weights_file: /code/data/weights/scannet_map_1800_3.npy
 
 transforms:
   transforms:
     - _target_: src.datamodules.transforms.ToTensor
       expand_dims: false
     - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
-      labels_mapping: map_1800_2
+      labels_mapping: map_1800_3
       mapping_file: /code/data/mappings/all_mappings_v4.csv
       mapped_key: "semantic"
       labels_key: "mask"

@@ -1,25 +1,13 @@
 defaults:
   - default.yaml
-#
-#watch_model:
-#  _target_: src.callbacks.wandb_callbacks.WatchModel
-#  log: "all"
-#  log_freq: 100
-#
-#upload_code_as_artifact:
-#  _target_: src.callbacks.wandb_callbacks.UploadCodeAsArtifact
-#  code_dir: ${work_dir}/src
-#
-#upload_ckpts_as_artifact:
-#  _target_: src.callbacks.wandb_callbacks.UploadCheckpointsAsArtifact
-#  ckpt_dir: "checkpoints/"
-#  upload_best_only: True
-#
 
 log_confusion_matrix:
   _target_: src.callbacks.metric_callbacks.LogConfusionMatrixAndMetrics
   label_names: /code/data/label_names/map_1800_1.csv
-
-#log_image_predictions:
-#  _target_: src.callbacks.wandb_callbacks.LogImagePredictions
-#  num_samples: 8
+  plot_3d_points_every_n: 16
+  head_id: 0
+  semantic_key: 'semantic'
+test_semseg_callback:
+  _target_: src.callbacks.metric_callbacks.TestingSemSeg
+  label_names: /code/data/label_names/map_1800_1.csv
+  plot_3d_points_every_n: 50

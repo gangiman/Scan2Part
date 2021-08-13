@@ -1,0 +1,11 @@
+_target_: src.datamodules.scannet_datamodule.ScannetDataModule
+
+version: v2
+data_dir: "/scannet/scannet-vox/scans"
+batch_size: 6
+num_workers: 4
+limit: null
+pin_memory: True
+num_val_samples: 64
+train_file: /code/data/split/train.sparse_2cm.csv
+test_file: /code/data/split/test.sparse_2cm.csv

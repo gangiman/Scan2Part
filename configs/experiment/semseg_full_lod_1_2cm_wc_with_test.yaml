@@ -1,0 +1,36 @@
+# @package _global_
+
+# to execute this experiment run:
+# python run.py experiment=semseg_full.yaml
+
+defaults:
+  - override /trainer: ddp.yaml # choose trainer from 'configs/trainer/'
+  - override /model: semantic_segmentation_model.yaml
+  - override /datamodule: scannet_dm_sparse_2cm.yaml
+  - override /callbacks: semseg.yaml
+  - override /logger: wandb.yaml
+  - override /transforms: null
+
+logger:
+  wandb:
+    name: 'semseg_lod_1_2cm_wc_test'
+
+trainer:
+  gpus: 4
+  max_epochs: 200
+
+transforms:
+  transforms:
+    - _target_: src.datamodules.transforms.ToTensor
+      expand_dims: false
+    - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
+      labels_mapping: map_1800_1
+      mapping_file: /code/data/mappings/all_mappings_v4.csv
+      mapped_key: "semantic"
+      labels_key: "mask"
+      map_bg_to_value: -1
+    - _target_: src.datamodules.transforms.PrepareSparseFeatures
+      keys_to_sparsify: ['semantic']
+      nnz_key: 'semantic'
+      add_color: false
+      bg_value: 0
