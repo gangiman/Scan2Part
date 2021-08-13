@@ -105,9 +105,17 @@ class LogConfusionMatrixAndMetrics(Callback):
     Expects validation step to return predictions and targets.
     """
 
-    def __init__(self, label_names: str = None, plot_3d_points_every_n: bool = False):
+    def __init__(
+            self,
+            label_names: str = None,
+            head_id: int = 0,
+            semantic_key: str = 'semantic',
+            plot_3d_points_every_n: bool = False
+         ):
         self.label_names = pd.read_csv(label_names, squeeze=True, header=None).tolist()
         self.plot_3d_points_every_n = plot_3d_points_every_n
+        self.head_id = head_id
+        self.semantic_key = semantic_key
         self.preds = []
         self.targets = []
         self.coords = []
@@ -131,8 +139,8 @@ class LogConfusionMatrixAndMetrics(Callback):
                 batch_coords[batch_coords[:, 0] == _i, 1:]
                 for _i in range(batch_coords[:, 0].max() + 1)
             ])
-            self.preds.extend(outputs['head_logits'][0])
-            self.targets.extend(outputs['semantic'])
+            self.preds.extend(outputs['head_logits'][self.head_id])
+            self.targets.extend(outputs[self.semantic_key])
 
     def on_validation_epoch_end(self, trainer, pl_module):
         """Generate confusion matrix."""
@@ -150,12 +158,12 @@ class LogConfusionMatrixAndMetrics(Callback):
             for _i, (_coord, _target, _pred) in enumerate(zip(self.coords, self.targets, self.preds)):
                 if self.plot_3d_points_every_n and (_i % self.plot_3d_points_every_n == 0):
                     html = plot_3d_voxels_as_k3d_html(_coord, _pred)
-                    self.experiment.log({f"val/k3d_voxels_{_i}": wandb.Html(html)})
+                    self.experiment.log({f"val/head_{self.head_id}/k3d_voxels_{_i}": wandb.Html(html)})
             self.coords.clear()
             self.preds.clear()
             self.targets.clear()
 
-    def plot_confusion_matrix(self, targets, preds, label_ids):
+    def plot_confusion_matrix(self, targets, preds, label_ids, mode='val'):
         confusion_matrix = metrics.confusion_matrix(
             y_true=targets,
             y_pred=preds,
@@ -174,13 +182,13 @@ class LogConfusionMatrixAndMetrics(Callback):
             xticklabels=self.label_names
         )
         # names should be uniqe or else charts from different experiments in wandb will overlap
-        self.experiment.log({f"val/confusion_matrix": wandb.Image(plt)}, commit=False)
+        self.experiment.log({f"{mode}/head_{self.head_id}/confusion_matrix": wandb.Image(plt)}, commit=False)
         # according to wandb docs this should also work but it crashes
         # experiment.log(f{"confusion_matrix/{experiment.name}": plt})
         # reset plot
         plt.clf()
 
-    def plot_pr_f1(self, targets, preds, label_ids):
+    def plot_pr_f1(self, targets, preds, label_ids, mode='val'):
         """Generate f1, precision and recall heatmap."""
         f1 = f1_score(preds, targets, labels=label_ids, average=None)
         r = recall_score(preds, targets, labels=label_ids, average=None)
@@ -188,10 +196,10 @@ class LogConfusionMatrixAndMetrics(Callback):
         data = [f1, p, r]
         df = pd.DataFrame({'f1_score': f1, 'precision': p, 'recall': r}, index=self.label_names)
         self.experiment.log({
-            'val/precision': p.mean(),
-            'val/recall': r.mean(),
-            'val/f1': f1.mean(),
-            'val/table': wandb.Table(dataframe=df)
+            f'{mode}/head_{self.head_id}/precision': p.mean(),
+            f'{mode}/head_{self.head_id}/recall': r.mean(),
+            f'{mode}/head_{self.head_id}/f1': f1.mean(),
+            f'{mode}/head_{self.head_id}/table': wandb.Table(dataframe=df)
         }, commit=False)
         # set figure size
         plt.figure(figsize=(14, 8))
@@ -207,6 +215,41 @@ class LogConfusionMatrixAndMetrics(Callback):
             xticklabels=self.label_names
         )
         # names should be uniqe or else charts from different experiments in wandb will overlap
-        self.experiment.log({f"val/f1_p_r_heatmap": wandb.Image(plt)}, commit=False)
+        self.experiment.log({f"{mode}/head_{self.head_id}/f1_p_r_heatmap": wandb.Image(plt)}, commit=False)
         # reset plot
         plt.clf()
+
+
+class TestingSemSeg(LogConfusionMatrixAndMetrics):
+    def on_test_batch_end(
+            self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx
+    ):
+        if self.ready:
+            batch_coords = batch[0]
+            self.coords.extend([
+                batch_coords[batch_coords[:, 0] == _i, 1:]
+                for _i in range(batch_coords[:, 0].max() + 1)
+            ])
+            self.preds.extend(outputs['head_logits'][self.head_id])
+            self.targets.extend(outputs[self.semantic_key])
+
+    def on_test_epoch_end(self, trainer, pl_module):
+        """Generate confusion matrix."""
+        if self.ready:
+            logger = get_wandb_logger(trainer)
+            self.experiment = logger.experiment
+            preds = torch.cat(self.preds).cpu().numpy()
+            targets = torch.cat(self.targets).cpu().numpy()
+            if len(preds.shape) > 1:
+                preds = np.argmax(preds, axis=1)
+            label_ids = list(range(len(self.label_names)))
+            self.plot_confusion_matrix(targets, preds, label_ids, mode='test')
+            self.plot_pr_f1(targets, preds, label_ids, mode='test')
+            for _i, (_coord, _target, _pred) in tqdm(enumerate(zip(self.coords, self.targets, self.preds)),
+                                                     leave=False, total=len(self.coords), desc='Saving predictions'):
+                if _coord.any() and self.plot_3d_points_every_n and (_i % self.plot_3d_points_every_n == 0):
+                    html = plot_3d_voxels_as_k3d_html(_coord, _pred)
+                    self.experiment.log({f"test/head_{self.head_id}/k3d_voxels_{_i}": wandb.Html(html)})
+            self.coords.clear()
+            self.preds.clear()
+            self.targets.clear()

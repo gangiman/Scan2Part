@@ -1,0 +1,34 @@
+# @package _global_
+
+# to execute this experiment run:
+# python run.py experiment=semseg_full.yaml
+
+defaults:
+  - override /trainer: ddp.yaml # choose trainer from 'configs/trainer/'
+  - override /model: semantic_segmentation_model.yaml
+  - override /datamodule: scannet_dm_sparse.yaml
+  - override /callbacks: semseg.yaml
+  - override /logger: wandb.yaml
+  - override /transforms: semseg_sparse.yaml
+
+trainer:
+  max_epochs: 100
+
+datamodule:
+  batch_size: 8
+  num_workers: 4
+  train_file: /code/data/split/train.sparse_2cm.csv
+
+callbacks:
+  log_confusion_matrix:
+    label_names: /code/data/label_names/map_1800_1.csv
+    plot_3d_points_every_n: 16
+
+model:
+  in_channels: 4
+  heads:
+    - num_classes: 13
+      loss_weight: 1.0
+      semantic_key: 'semantic'
+      weight_mode: 'median' # in ('min', 'mean', 'median', 'max')
+      class_weights_file: /code/data/weights/scannet_map_1800_1.npy

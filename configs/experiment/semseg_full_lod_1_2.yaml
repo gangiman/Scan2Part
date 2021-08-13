@@ -1,0 +1,73 @@
+# @package _global_
+
+# to execute this experiment run:
+# python run.py experiment=semseg_full.yaml
+
+defaults:
+  - override /trainer: ddp.yaml # choose trainer from 'configs/trainer/'
+  - override /model: semantic_segmentation_model.yaml
+  - override /datamodule: scannet_dm_sparse.yaml
+  - override /callbacks: default.yaml
+  - override /logger: wandb.yaml
+  - override /transforms: null
+
+logger:
+  wandb:
+    name: 'semseg_lod_1_2'
+
+datamodule:
+  batch_size: 32
+
+trainer:
+  max_epochs: 100
+
+callbacks:
+  log_confusion_matrix_1:
+    _target_: src.callbacks.metric_callbacks.LogConfusionMatrixAndMetrics
+    label_names: /code/data/label_names/map_1800_1.csv
+    plot_3d_points_every_n: 16
+    head_id: 0
+    semantic_key: 'semantic_1'
+
+  log_confusion_matrix_2:
+    _target_: src.callbacks.metric_callbacks.LogConfusionMatrixAndMetrics
+    label_names: /code/data/label_names/map_1800_2.csv
+    plot_3d_points_every_n: 16
+    head_id: 1
+    semantic_key: 'semantic_2'
+
+model:
+  in_channels: 4
+  heads:
+    - num_classes: 13
+      loss_weight: 0.5
+      semantic_key: 'semantic_1'
+      weight_mode: 'median' # in ('min', 'mean', 'median', 'max')
+      class_weights_file: /code/data/weights/scannet_map_1800_1.npy
+    - num_classes: 36
+      loss_weight: 0.5
+      semantic_key: 'semantic_2'
+      weight_mode: 'median' # in ('min', 'mean', 'median', 'max')
+      class_weights_file: /code/data/weights/scannet_map_1800_2.npy
+
+transforms:
+  transforms:
+    - _target_: src.datamodules.transforms.ToTensor
+      expand_dims: false
+    - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
+      labels_mapping: map_1800_1
+      mapping_file: /code/data/mappings/all_mappings_v4.csv
+      mapped_key: "semantic_1"
+      labels_key: "mask"
+      map_bg_to_value: -1
+    - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
+      labels_mapping: map_1800_2
+      mapping_file: /code/data/mappings/all_mappings_v4.csv
+      mapped_key: "semantic_2"
+      labels_key: "mask"
+      map_bg_to_value: -1
+    - _target_: src.datamodules.transforms.PrepareSparseFeatures
+      keys_to_sparsify: [ 'semantic_1', 'semantic_2' ]
+      nnz_key: 'semantic_2'
+      add_color: true
+      bg_value: 0
