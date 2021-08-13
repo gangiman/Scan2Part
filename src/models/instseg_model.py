@@ -17,81 +17,41 @@ class DiscriminativeLoss(nn.Module):
         self.delta_p = delta_p
 
     def forward(self, embedded, masks, size):
-        centroids = self._centroids(embedded, masks, size)
-        L_v = self._variance(embedded, masks, centroids, size)
-        L_d = self._distance(centroids, size)
-        L_r = self._regularization(centroids, size)
-        loss = self.alpha * L_v + self.beta * L_d + self.gamma * L_r
-        return loss
-
-    def _centroids(self, embedded, masks, size):
+        variance_loss = 0.0
+        distance_loss = 0.0
+        reg_loss = 0.0
         batch_size = len(embedded)
-        embedding_size = embedded[0].size(-1)
-        K = masks[0].size(-1)
-        masked_embeddings = []
-        for _embed, _mask in zip(embedded, masks):
-            masked_embeddings.append(
-                _embed.unsqueeze(1).expand(-1, K, -1) * _mask.unsqueeze(2))
-        centroids = []
-        for i in range(batch_size):
-            n = size[i]
-            mu = masked_embeddings[i][:, :n].sum(0) / masks[i].unsqueeze(2)[:, :n].sum(0)
-            if K > n:
-                m = int(K - n)
-                filled = torch.zeros(m, embedding_size)
-                filled = filled.to(embedded[0].device)
-                mu = torch.cat([mu, filled], dim=0)
-            centroids.append(mu)
-        centroids = torch.stack(centroids)
-        return centroids
-
-    def _variance(self, embedded, masks, centroids, size):
-        loss = 0.0
-        batch_size = len(embedded)
-        for _embed, _mask, _centroids, n in zip(embedded, masks, centroids, size):
+        for n, _embed, _mask in zip(size, embedded, masks):
             num_points = _embed.size(0)
-            K = _mask.size(1)
+            inst_mask = _mask.unsqueeze(2)
+            masked_embeddings = _embed.unsqueeze(1).expand(-1, n, -1) * inst_mask
+            mu = masked_embeddings.sum(0) / inst_mask.sum(0)
+            centroids = mu
             # Convert input into the same size
-            mu = _centroids.unsqueeze(0).expand(num_points, -1, -1)
-            x = _embed.unsqueeze(1).expand(-1, K, -1)
+            mu = centroids.unsqueeze(0).expand(num_points, -1, -1)
+            x = _embed.unsqueeze(1).expand(-1, n, -1)
             # Calculate intra pull force
             var = torch.norm(x - mu, 2, dim=2)
             var = torch.clamp(var - self.delta_v, min=0.0) ** 2
-            var = var * _mask
-            loss += torch.sum(var[:, :n]) / torch.sum(_mask[:, :n])
-        loss /= batch_size
-        return loss
-
-    def _distance(self, centroids, size):
-        batch_size = centroids.size(0)
-        loss = 0.0
-        for i in range(batch_size):
-            n = size[i]
-            if n <= 1:
-                continue
-            mu = centroids[i, :n, :]
-            mu_a = mu.unsqueeze(1).expand(-1, n, -1)
-            mu_b = mu_a.permute(1, 0, 2)
-            diff = mu_a - mu_b
-            norm = torch.norm(diff, 2, dim=2)
-            margin = 2 * self.delta_d * (1.0 - torch.eye(n))
-            margin = margin.to(centroids.device)
-            distance = torch.sum(torch.clamp(margin - norm, min=0.0) ** 2)  # hinge loss
-            distance /= float(n * (n - 1))
-            loss += distance
-        loss /= batch_size
-        return loss
-
-    def _regularization(self, centroids, size):
-        batch_size = centroids.size(0)
-        loss = 0.0
-        for i in range(batch_size):
-            n = size[i]
-            mu = centroids[i, :n, :]
-            norm = torch.norm(mu, 2, dim=1)
-            loss += torch.mean(norm)
-        loss /= batch_size
-        return loss
+            var = var * inst_mask[:, :, 0]
+            variance_loss += var.sum() / inst_mask.sum()
+            # calculating distance loss
+            if n > 1:
+                # continue
+                mu = centroids
+                mu_a = mu.unsqueeze(1).expand(-1, n, -1)
+                mu_b = mu_a.permute(1, 0, 2)
+                diff = mu_a - mu_b
+                norm = torch.norm(diff, 2, dim=2)
+                margin = 2 * self.delta_d * (1.0 - torch.eye(n))
+                margin = margin.to(centroids.device)
+                distance = torch.sum(torch.clamp(margin - norm, min=0.0) ** 2)  # hinge loss
+                distance /= float(n * (n - 1))
+                distance_loss += distance
+            # calculating regularisation
+            norm = torch.norm(centroids, 2, dim=1)
+            reg_loss += norm.mean()
+        return (self.alpha * variance_loss + self.beta * distance_loss + self.gamma * reg_loss) / batch_size
 
 
 class InstanceSegmentation(Residual3DUnet):

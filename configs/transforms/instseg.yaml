@@ -15,5 +15,4 @@ transforms:
     add_color: true
     bg_value: 0
   - _target_: src.datamodules.transforms.ComputeInstanceMasks
-    max_num_of_instances_in_sample: 40
     instance_mask: "object"

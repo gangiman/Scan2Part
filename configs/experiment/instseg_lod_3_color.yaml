@@ -15,6 +15,7 @@ model:
   in_channels: 4
 
 datamodule:
+#  limit: 64
   batch_size: 16
   num_val_samples: 32
 
@@ -24,7 +25,7 @@ trainer:
 
 callbacks:
   log_intance_metrics_callback:
-    num_classes: 36
+    num_classes: 79
     num_workers: 6
     plot_3d_points_every_n: 16
 
@@ -33,7 +34,7 @@ transforms:
     - _target_: src.datamodules.transforms.ToTensor
       expand_dims: false
     - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
-      labels_mapping: map_1800_2
+      labels_mapping: map_1800_3
       mapping_file: /code/data/mappings/all_mappings_v4.csv
       mapped_key: "semantic"
       labels_key: "mask"

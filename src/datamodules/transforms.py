@@ -9,17 +9,16 @@ from scipy.ndimage import rotate, map_coordinates, gaussian_filter
 
 
 class ComputeInstanceMasks:
-    def __init__(self, max_num_of_instances_in_sample=40, instance_mask='objects'):
-        self.max_instances = max_num_of_instances_in_sample
+    def __init__(self, instance_mask='objects'):
         self.instance_mask = instance_mask
 
     def __call__(self, sample):
         _, _, label_dict = sample
         instance_labels = label_dict[self.instance_mask]
-        masks = torch.zeros((instance_labels.shape[0], self.max_instances), dtype=torch.float32)
+        num_instances = label_dict[f"{self.instance_mask}_size"]
+        masks = torch.zeros((instance_labels.shape[0], num_instances), dtype=torch.float32)
         masks.scatter_(1, instance_labels.unsqueeze(-1), 1)
         label_dict[self.instance_mask] = masks
-        # sample[2] = label_dict
         return sample
 
 
@@ -414,7 +413,7 @@ class PrepareSparseFeatures:
         output = {}
         for _key in self.keys_to_sparsify:
             labels = sample[_key]
-            if labels.shape[0] > 1:
+            if labels.ndim and labels.shape[0] > 1:
                 output[_key] = labels[nnz_index]
             else:
                 output[_key] = labels
