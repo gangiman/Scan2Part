@@ -12,7 +12,12 @@ defaults:
   - override /transforms: null
 
 
+logger:
+  wandb:
+    name: 'semseg_lod_3_testonly'
+
 trainer:
+  resume_from_checkpoint: /code/logs/runs/2021-08-13/01-55-09/checkpoints/last.ckpt
   max_epochs: 100
 
 datamodule:
@@ -22,6 +27,10 @@ callbacks:
   log_confusion_matrix:
     label_names: /code/data/label_names/map_1800_3.csv
     plot_3d_points_every_n: 16
+  test_semseg_callback:
+    _target_: src.callbacks.metric_callbacks.TestingSemSeg
+    label_names: /code/data/label_names/map_1800_3.csv
+    plot_3d_points_every_n: 50
 
 model:
   in_channels: 4

@@ -7,22 +7,35 @@ defaults:
   - override /trainer: ddp.yaml # choose trainer from 'configs/trainer/'
   - override /model: semantic_segmentation_model.yaml
   - override /datamodule: scannet_dm_sparse.yaml
-  - override /callbacks: semseg.yaml
+  - override /callbacks: default.yaml
   - override /logger: wandb.yaml
   - override /transforms: semseg_sparse.yaml
 
+logger:
+  wandb:
+    name: 'semseg_lod_1_2cm_testonly'
+
 trainer:
+  resume_from_checkpoint: /code/logs/runs/2021-08-13/03-07-33/checkpoints/last.ckpt
   max_epochs: 100
 
 datamodule:
   batch_size: 8
   num_workers: 4
   train_file: /code/data/split/train.sparse_2cm.csv
+  test_file: /code/data/split/test.sparse_2cm.csv
 
 callbacks:
   log_confusion_matrix:
+    _target_: src.callbacks.metric_callbacks.LogConfusionMatrixAndMetrics
     label_names: /code/data/label_names/map_1800_1.csv
     plot_3d_points_every_n: 16
+    head_id: 0
+    semantic_key: 'semantic'
+  test_semseg_callback:
+    _target_: src.callbacks.metric_callbacks.TestingSemSeg
+    label_names: /code/data/label_names/map_1800_1.csv
+    plot_3d_points_every_n: 50
 
 model:
   in_channels: 4
