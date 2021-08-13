@@ -57,5 +57,5 @@ def plot_3d_voxels_as_k3d_html(coords, preds):
     shape = tuple(coords.max(axis=0) + 1)
     voxels = np.zeros(shape, dtype=np.uint8)
     voxels[tuple(coords.T)] = preds + 1
-    plot = plot_voxels(voxels)
+    plot = plot_voxels(voxels, camera_mode='orbit', menu_visibility=False)
     return plot.get_snapshot()
