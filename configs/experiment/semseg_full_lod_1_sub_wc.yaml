@@ -9,7 +9,7 @@ defaults:
   - override /datamodule: scannet_dm_sparse.yaml
   - override /callbacks: semseg.yaml
   - override /logger: wandb.yaml
-  - override /transforms: semseg_sparse.yaml
+  - override /transforms: null
 
 logger:
   wandb:
@@ -18,6 +18,18 @@ logger:
 datamodule:
   batch_size: 32
 
-trainer:
-  max_epochs: 100
-
+transforms:
+  transforms:
+    - _target_: src.datamodules.transforms.ToTensor
+      expand_dims: false
+    - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
+      labels_mapping: map_1800_1
+      mapping_file: /code/data/mappings/all_mappings_v4.csv
+      mapped_key: "semantic"
+      labels_key: "mask"
+      map_bg_to_value: -1
+    - _target_: src.datamodules.transforms.PrepareSparseFeatures
+      keys_to_sparsify: ['semantic']
+      nnz_key: 'semantic'
+      add_color: false
+      bg_value: 0

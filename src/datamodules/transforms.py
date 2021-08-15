@@ -3,7 +3,7 @@ import numpy as np
 import omegaconf
 from random import choice
 import pandas as pd
-from typing import Dict, Sequence, Tuple, Optional
+from typing import Dict, Sequence, Tuple, Optional, Union
 from scipy.ndimage import rotate, map_coordinates, gaussian_filter
 # from src.utils.hierarchy import get_output_hierarchy
 
@@ -390,17 +390,22 @@ class PrepareSparseFeatures:
     def __init__(
             self,
             keys_to_sparsify: Tuple[str] = ('semantic', 'object'),
-            nnz_key: str = 'semantic',
+            nnz_key: Union[str, Sequence[str]] = 'semantic',
             bg_value: int = 0,
             add_color: bool = False
     ):
         self.keys_to_sparsify = keys_to_sparsify
         self.bg_value = bg_value
-        self.nnz_key = nnz_key
+        if isinstance(nnz_key, str):
+            self.nnz_key = [nnz_key]
+        else:
+            self.nnz_key = nnz_key
         self.add_color = add_color
 
     def __call__(self, sample: Dict[str, torch.Tensor]):
-        nnz_index = sample[self.nnz_key] >= self.bg_value
+        nnz_index = True
+        for _nnz_key in self.nnz_key:
+            nnz_index = (sample[_nnz_key] >= self.bg_value) & nnz_index
         coordinates = sample['coords'][nnz_index]
         features = sample['sdf'][nnz_index].unsqueeze(1)
         features *= 5.0

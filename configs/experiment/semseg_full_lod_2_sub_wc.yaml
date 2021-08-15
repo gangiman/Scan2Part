@@ -19,8 +19,6 @@ logger:
 datamodule:
   batch_size: 32
 
-trainer:
-  max_epochs: 100
 
 callbacks:
   log_confusion_matrix:

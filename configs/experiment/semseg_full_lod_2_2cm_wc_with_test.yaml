@@ -16,6 +16,7 @@ logger:
     name: 'semseg_lod_2_2cm_wc_test'
 
 trainer:
+  resume_from_checkpoint: /code/logs/runs/2021-08-14/00-18-37/checkpoints/last.ckpt
   gpus: 4
   max_epochs: 200
 

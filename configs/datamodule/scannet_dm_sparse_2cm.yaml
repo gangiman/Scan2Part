@@ -2,7 +2,7 @@ _target_: src.datamodules.scannet_datamodule.ScannetDataModule
 
 version: v2
 data_dir: "/scannet/scannet-vox/scans"
-batch_size: 6
+batch_size: 4
 num_workers: 4
 limit: null
 pin_memory: True
