@@ -3,7 +3,7 @@ _target_: src.models.hierarchical_model.HierarchicalModel
 f_maps: 32
 sparse_backbone_type: Res16UNet34C
 conv1_kernel_size: 3
-in_channels: 4
+in_channels: 1
 hierarchy_file: /code/data/mappings/hierarchy_0k.json
 max_lod: 3
 semantic_key: 'semantic'

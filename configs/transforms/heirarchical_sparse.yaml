@@ -21,6 +21,6 @@ transforms:
     normalize_labels: false
   - _target_: src.datamodules.transforms.PrepareSparseFeatures
     keys_to_sparsify: ['semantic_1', 'semantic_2', 'semantic_3']
-    nnz_key: 'semantic_1'
-    add_color: true
+    nnz_key: ['semantic_1', 'semantic_2', 'semantic_3']
+    add_color: false
     bg_value: 0

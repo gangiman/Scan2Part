@@ -1,21 +1,29 @@
 # @package _global_
 
 # to execute this experiment run:
-# python run.py experiment=debug_hierarchical.yaml
+# python run.py experiment=hierarchical_top_down_max_lod_3.yaml
 
 # select_nodes: [[1, None], [2, 7], [2, 10], [2, 2], [2, 21], [2, 28], [2, 3], [2, 110], [2, 5], [2, 6], [2, 1], [2, 8], [2, 15], [2, 31], [2, 48]]
 #selected_lods: [1, 2, 3] #, 4, 5, 6, 7, 8]
 
 
 defaults:
-  - override /trainer: debug.yaml # choose trainer from 'configs/trainer/'
+  - override /trainer: ddp.yaml # choose trainer from 'configs/trainer/'
   - override /model: heirarchical_segmentation_model.yaml
   - override /datamodule: scannet_dm_sparse.yaml
-  - override /callbacks: null
-  - override /logger: null
+  - override /callbacks: default.yaml
+  - override /logger: wandb.yaml
   - override /transforms: heirarchical_sparse.yaml
 
+
+logger:
+  wandb:
+    name: 'hierarchical_top_down_max_lod_3'
+
+
+trainer:
+  gpus: [1]
+
 datamodule:
-  limit: 32
-  batch_size: 8
-  num_val_samples: 16
+  batch_size: 32
+  num_val_samples: 64

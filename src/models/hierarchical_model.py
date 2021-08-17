@@ -31,7 +31,6 @@ class RecursiveHeadLoss(nn.Module):
         if children is not None and children:
             num_classes = len(children)
             children = sorted(children, key=lambda x: int(x['set_id']))
-            self.num_classes = num_classes
             if num_classes > 1:
                 self.lod = lod
                 self.semantic_key = f"{semantic_key}_{lod}"
@@ -40,7 +39,7 @@ class RecursiveHeadLoss(nn.Module):
                 children_set_ids = torch.tensor([int(_child['set_id']) for _child in children])
                 label_mapping = torch.zeros(children_set_ids.max() + 1, dtype=torch.int64)
                 label_mapping[children_set_ids] = torch.arange(children_set_ids.shape[0])
-                self.label_mapping = label_mapping
+                self.register_buffer('label_mapping', label_mapping)
             if lod < max_lod:
                 for _child in children:
                     if _child.get('children', False) and len(_child['children']) > 1:
@@ -55,7 +54,7 @@ class RecursiveHeadLoss(nn.Module):
                 batch: Dict[str, List[torch.Tensor]],
                 masks: Optional[List[torch.Tensor]] = None):
         if masks is None:
-            masks = [torch.ones(_f.shape[0], dtype=torch.bool) for _f in features]
+            masks = [torch.ones(_f.shape[0], dtype=torch.bool, device=_f.device) for _f in features]
         logits = [self.final_layer(_features[_mask]) for _mask, _features in zip(masks, features)]
         target = batch[self.semantic_key]
         masked_targets = [_target[_mask] for _mask, _target in zip(masks, target)]
@@ -112,6 +111,10 @@ class HierarchicalModel(Residual3DUnet):
     def validation_step(self, batch, batch_idx):
         loss, head_logits, masks_dict = self.shared_step(batch)
         self.log('val/loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        return {'head_logits': head_logits, **masks_dict}
+
+    def test_step(self, batch, batch_idx):
+        loss, head_logits, masks_dict = self.shared_step(batch)
         return {'head_logits': head_logits, **masks_dict}
 
 
