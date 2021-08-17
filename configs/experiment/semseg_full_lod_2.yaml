@@ -13,11 +13,11 @@ defaults:
 
 logger:
   wandb:
-    name: 'semseg_lod_2_testonly'
+    name: 'semseg_lod_2_new_testonly_epoch_91'
 
 trainer:
-  resume_from_checkpoint: /code/logs/runs/2021-08-12/23-13-14/checkpoints/last.ckpt
-  max_epochs: 100
+  resume_from_checkpoint: /code/logs/runs/2021-08-12/23-13-14/checkpoints/epoch=91.ckpt
+  max_epochs: 92
 
 callbacks:
   log_confusion_matrix:

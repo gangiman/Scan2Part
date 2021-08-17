@@ -13,11 +13,15 @@ defaults:
 
 logger:
   wandb:
-    name: 'semseg_lod_2_sub_wc'
+    name: 'semseg_lod_2_sub_wc_new_testonly'
 
 
 datamodule:
   batch_size: 32
+
+trainer:
+  resume_from_checkpoint: /code/logs/runs/2021-08-14/11-35-17/checkpoints/epoch=60.ckpt
+  max_epochs: 61
 
 
 callbacks:

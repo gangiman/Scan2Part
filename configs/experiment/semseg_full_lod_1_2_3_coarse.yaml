@@ -13,13 +13,14 @@ defaults:
 
 logger:
   wandb:
-    name: 'semseg_lod_1_2_3_coarse'
+    name: 'semseg_lod_1_2_3_coarse_new_testonly'
 
 datamodule:
   batch_size: 32
 
 trainer:
-  max_epochs: 200
+  resume_from_checkpoint: /code/logs/runs/2021-08-15/22-04-28/checkpoints/epoch=192.ckpt
+  max_epochs: 193
 
 callbacks:
   log_confusion_matrix_1:
@@ -43,19 +44,19 @@ callbacks:
   log_confusion_matrix_1_test:
     _target_: src.callbacks.metric_callbacks.TestingSemSeg
     label_names: /code/data/label_names/map_1800_1.csv
-    plot_3d_points_every_n: 50
+    plot_3d_points_every_n: false
     head_id: 0
     semantic_key: 'semantic_1'
   log_confusion_matrix_2_test:
     _target_: src.callbacks.metric_callbacks.TestingSemSeg
     label_names: /code/data/label_names/map_1800_2.csv
-    plot_3d_points_every_n: 50
+    plot_3d_points_every_n: false
     head_id: 1
     semantic_key: 'semantic_2'
   log_confusion_matrix_3_test:
     _target_: src.callbacks.metric_callbacks.TestingSemSeg
     label_names: /code/data/label_names/map_1800_3.csv
-    plot_3d_points_every_n: 50
+    plot_3d_points_every_n: false
     head_id: 2
     semantic_key: 'semantic_3'
 

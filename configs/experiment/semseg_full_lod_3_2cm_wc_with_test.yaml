@@ -13,9 +13,10 @@ defaults:
 
 logger:
   wandb:
-    name: 'semseg_lod_3_2cm_wc_test'
+    name: 'semseg_lod_3_2cm_wc_new_testonly'
 
 trainer:
+  resume_from_checkpoint: /code/logs/runs/2021-08-14/13-31-35/checkpoints/last.ckpt
   gpus: 4
   max_epochs: 200
 
@@ -24,6 +25,7 @@ callbacks:
     label_names: /code/data/label_names/map_1800_3.csv
   test_semseg_callback:
     label_names: /code/data/label_names/map_1800_3.csv
+    plot_3d_points_every_n: false
 
 model:
   heads:

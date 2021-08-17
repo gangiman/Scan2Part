@@ -13,7 +13,7 @@ defaults:
 
 logger:
   wandb:
-    name: 'semseg_lod_1_2_testonly'
+    name: 'semseg_lod_1_2_new_testonly'
 
 datamodule:
   batch_size: 32
@@ -26,14 +26,14 @@ callbacks:
   log_confusion_matrix_1:
     _target_: src.callbacks.metric_callbacks.TestingSemSeg
     label_names: /code/data/label_names/map_1800_1.csv
-    plot_3d_points_every_n: 50
+    plot_3d_points_every_n: false
     head_id: 0
     semantic_key: 'semantic_1'
 
   log_confusion_matrix_2:
     _target_: src.callbacks.metric_callbacks.TestingSemSeg
     label_names: /code/data/label_names/map_1800_2.csv
-    plot_3d_points_every_n: 50
+    plot_3d_points_every_n: false
     head_id: 1
     semantic_key: 'semantic_2'
 

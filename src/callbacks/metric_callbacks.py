@@ -12,7 +12,7 @@ from pytorch_lightning import Callback
 
 from sklearn import metrics
 from sklearn.cluster import MeanShift
-from sklearn.metrics import f1_score, precision_score, recall_score
+from sklearn.metrics import f1_score, precision_score, recall_score, jaccard_score
 
 from src.callbacks.wandb_callbacks import get_wandb_logger
 from src.utils.metrics import EvaluateInstanceSegmentationPR
@@ -193,12 +193,14 @@ class LogConfusionMatrixAndMetrics(Callback):
         f1 = f1_score(preds, targets, labels=label_ids, average=None)
         r = recall_score(preds, targets, labels=label_ids, average=None)
         p = precision_score(preds, targets, labels=label_ids, average=None)
-        data = [f1, p, r]
-        df = pd.DataFrame({'f1_score': f1, 'precision': p, 'recall': r}, index=self.label_names)
+        iou = jaccard_score(preds, targets, labels=label_ids, average=None)
+        data = [f1, p, r, iou]
+        df = pd.DataFrame({'f1_score': f1, 'precision': p, 'recall': r, 'iou': iou}, index=self.label_names)
         self.experiment.log({
             f'{mode}/head_{self.head_id}/precision': p.mean(),
             f'{mode}/head_{self.head_id}/recall': r.mean(),
             f'{mode}/head_{self.head_id}/f1': f1.mean(),
+            f'{mode}/head_{self.head_id}/mIoU': iou.mean(),
             f'{mode}/head_{self.head_id}/table': wandb.Table(dataframe=df)
         }, commit=False)
         # set figure size
@@ -211,7 +213,7 @@ class LogConfusionMatrixAndMetrics(Callback):
             annot=True,
             annot_kws={"size": 10},
             fmt=".3f",
-            yticklabels=["F1", "Precision", "Recall"],
+            yticklabels=["F1", "Precision", "Recall", "IoU"],
             xticklabels=self.label_names
         )
         # names should be uniqe or else charts from different experiments in wandb will overlap

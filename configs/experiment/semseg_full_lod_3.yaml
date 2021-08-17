@@ -14,7 +14,7 @@ defaults:
 
 logger:
   wandb:
-    name: 'semseg_lod_3_testonly'
+    name: 'semseg_lod_3_new_testonly'
 
 trainer:
   resume_from_checkpoint: /code/logs/runs/2021-08-13/01-55-09/checkpoints/last.ckpt
