@@ -28,12 +28,13 @@ class LogInstSegIoU(Callback):
 
     def __init__(
             self,
-            class_names: List[str] = None,
+            label_names: str = None,
             num_classes: int = None,
             bandwidth: float = 1.0,
             num_workers: int = 1,
             plot_3d_points_every_n: bool = False
     ):
+        self.label_names = pd.read_csv(label_names, squeeze=True, header=None).tolist()
         self.metrics = EvaluateInstanceSegmentationPR(num_classes=num_classes)
         self.clustering_method = MeanShift(bandwidth=bandwidth,
                                            n_jobs=num_workers or None)
@@ -65,6 +66,29 @@ class LogInstSegIoU(Callback):
             self.semantic_targets.extend(outputs['semantic'])
             self.instance_targets.extend(outputs['object'])
 
+    def clear(self):
+        self.metrics.reset()
+        self.coords.clear()
+        self.embeddings.clear()
+        self.semantic_targets.clear()
+        self.instance_targets.clear()
+
+    def log_metrics(self, experiment, mode='val'):
+        df, mAP, mIoU = self.metrics.compute_metrics()
+        df.index = self.label_names
+        metrics = {
+            f'{mode}/mAP': mAP, f'{mode}/mIoU': mIoU,
+            f'{mode}/PR': wandb.Table(dataframe=df)
+        }
+        instances_pairs = pd.DataFrame(
+            self.metrics.inst_tuples,
+            columns=("true_ints_count", "pred_inst_count"))
+        plt.figure(figsize=(12, 12))
+        instances_pairs.plot.scatter(x='true_ints_count', y='pred_inst_count')
+        experiment.log({f"{mode}/instance_pairs": wandb.Image(plt)}, commit=False)
+        experiment.log(metrics, commit=False)
+        plt.clf()
+
     def on_validation_epoch_end(self, trainer, pl_module):
         """Generate f1, precision and recall heatmap."""
         if self.ready:
@@ -81,23 +105,31 @@ class LogInstSegIoU(Callback):
                     pred_instances,
                     _semantic.cpu().numpy(),
                     _instance_masks.nonzero()[:, 1].cpu().numpy())
+            self.log_metrics(experiment, mode='val')
+            self.clear()
 
-            df, mAP, mIoU = self.metrics.compute_metrics()
-            metrics = {
-                'val/mAP': mAP, 'val/mIoU': mIoU,
-                'val/PR': wandb.Table(dataframe=df.T)
-            }
-            instances_pairs = pd.DataFrame(self.metrics.inst_tuples, columns=("true_ints_count", "pred_inst_count"))
-            plt.figure(figsize=(12, 12))
-            instances_pairs.plot.scatter(x='true_ints_count', y='pred_inst_count')
-            experiment.log({f"val/instance_pairs": wandb.Image(plt)}, commit=False)
-            experiment.log(metrics, commit=False)
-            plt.clf()
-            self.metrics.reset()
-            self.coords.clear()
-            self.embeddings.clear()
-            self.semantic_targets.clear()
-            self.instance_targets.clear()
+
+class TestingInstSeg(LogInstSegIoU):
+    def on_test_batch_end(self, *args):
+        return self.on_validation_batch_end(*args)
+
+    def on_test_epoch_end(self, trainer, pl_module):
+        if self.ready:# and trainer.is_global_zero:
+            logger = get_wandb_logger(trainer=trainer)
+            experiment = logger.experiment
+            for _i, (_coord, _embedded, _semantic, _instance_masks) in tqdm(enumerate(zip(
+                    self.coords, self.embeddings, self.semantic_targets, self.instance_targets
+            )), leave=False, total=len(self.coords), desc="Clustering embeddings"):
+                pred_instances = self.clustering_method.fit_predict(_embedded.cpu().numpy())
+                if self.plot_3d_points_every_n and (_i % self.plot_3d_points_every_n == 0):
+                    html = plot_3d_voxels_as_k3d_html(_coord, pred_instances)
+                    experiment.log({f"test/k3d_voxels_{_i}": wandb.Html(html)})
+                self.metrics.update_rates(
+                    pred_instances,
+                    _semantic.cpu().numpy(),
+                    _instance_masks.nonzero()[:, 1].cpu().numpy())
+            self.log_metrics(experiment, mode='test')
+            self.clear()
 
 
 class LogConfusionMatrixAndMetrics(Callback):

@@ -71,7 +71,6 @@ class ScannetDataModule(LightningDataModule):
         self.data_train: Optional[Dataset] = None
         self.data_val: Optional[Dataset] = None
         self.data_test: Optional[Dataset] = None
-        self.data = []
 
     def prepare_data(self):
         """Download data if needed. This method is called only from a single GPU.
@@ -79,6 +78,7 @@ class ScannetDataModule(LightningDataModule):
         pass
 
     def setup(self, stage: Optional[str] = None):
+        data = []
         """Load data. Set variables: self.data_train, self.data_val, self.data_test."""
         if stage == 'fit':
             train_df_read = pd.read_csv(self.hparams.train_file, header=None, index_col=False)
@@ -98,10 +98,10 @@ class ScannetDataModule(LightningDataModule):
         with concurrent.futures.ProcessPoolExecutor(num_workers) as executor:
             for _sample in tqdm(executor.map(self.load_fn, data_files), total=len(data_files),
                                 leave=False, desc="Loading data files"):
-                self.data.append(_sample)
+                data.append(_sample)
 
         dataset = self.dataset_class(
-            self.data, transforms=self.hparams.transforms)
+            data, transforms=self.hparams.transforms)
 
         if stage == 'fit':
             self.data_train, self.data_val = random_split(

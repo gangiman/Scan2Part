@@ -8,7 +8,7 @@ class EvaluateInstanceSegmentationPR:
         # Init test set wide vars
         self.ap_threshold = ap_threshold
         # total number of classes without background-class
-        self.num_classes = num_classes - 1
+        self.num_classes = num_classes
         self.iou = self.inst_tuples = self.total = self.fps = self.tps = None
         self.reset()
 

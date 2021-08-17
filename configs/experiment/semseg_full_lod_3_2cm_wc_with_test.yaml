@@ -17,7 +17,7 @@ logger:
 
 trainer:
   resume_from_checkpoint: /code/logs/runs/2021-08-14/13-31-35/checkpoints/last.ckpt
-  gpus: 4
+  gpus: 1
   max_epochs: 200
 
 callbacks:

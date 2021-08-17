@@ -7,15 +7,16 @@ defaults:
   - override /trainer: ddp.yaml # choose trainer from 'configs/trainer/'
   - override /model: instance_segmentation_model.yaml
   - override /datamodule: scannet_dm_sparse.yaml
-  - override /callbacks: default.yaml
+  - override /callbacks: instseg.yaml
   - override /logger: wandb.yaml
   - override /transforms: instseg.yaml
+
+logger:
+  wandb:
+    name: 'instseg_lod_1_new_testonly'
 
 model:
   in_channels: 4
 
-#callbacks:
-#  log_intance_metrics_callback:
-#    num_workers: 2
-#    plot_3d_points_every_n: false
-
+trainer:
+  resume_from_checkpoint: /code/logs/runs/2021-08-14/16-46-58/checkpoints/last.ckpt

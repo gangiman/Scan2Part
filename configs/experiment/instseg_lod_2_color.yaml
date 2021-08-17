@@ -11,6 +11,10 @@ defaults:
   - override /logger: wandb.yaml
   - override /transforms: null
 
+logger:
+  wandb:
+    name: 'instseg_lod_2_new_testonly'
+
 model:
   in_channels: 4
 
@@ -19,14 +23,18 @@ datamodule:
   num_val_samples: 32
 
 trainer:
+  resume_from_checkpoint: /code/logs/runs/2021-08-12/16-37-34/checkpoints/last.ckpt
   check_val_every_n_epoch: 10
+  gpus: 1
   max_epochs: 100
 
 callbacks:
   log_intance_metrics_callback:
+    label_names: /code/data/label_names/map_1800_2.csv
     num_classes: 36
-    num_workers: 6
-    plot_3d_points_every_n: 16
+  test_instance_segmentation:
+    label_names: /code/data/label_names/map_1800_2.csv
+    num_classes: 36
 
 transforms:
   transforms:

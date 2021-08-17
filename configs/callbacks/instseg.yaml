@@ -3,11 +3,19 @@ defaults:
 
 log_intance_metrics_callback:
  _target_: src.callbacks.metric_callbacks.LogInstSegIoU
- num_classes: 14
+ label_names: /code/data/label_names/map_1800_1.csv
+ num_classes: 13
  bandwidth: 1.0
  num_workers: 6
  plot_3d_points_every_n: 16
 
+test_instance_segmentation:
+ _target_: src.callbacks.metric_callbacks.TestingInstSeg
+ label_names: /code/data/label_names/map_1800_1.csv
+ num_classes: 13
+ bandwidth: 1.0
+ num_workers: 6
+ plot_3d_points_every_n: 50
 #early_stopping:
 #  _target_: pytorch_lightning.callbacks.EarlyStopping
 #  monitor: "val/acc" # name of the logged metric which determines when model is improving
