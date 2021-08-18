@@ -1,0 +1,86 @@
+# @package _global_
+
+# to execute this experiment run:
+# python run.py experiment=semseg_full.yaml
+
+defaults:
+  - override /trainer: ddp.yaml # choose trainer from 'configs/trainer/'
+  - override /model: semantic_segmentation_model.yaml
+  - override /datamodule: scannet_dm_sparse.yaml
+  - override /callbacks: semseg.yaml
+  - override /logger: wandb.yaml
+  - override /transforms: null
+
+
+logger:
+  wandb:
+    name: 'semseg_lod_3_new_test_bottom_up'
+
+trainer:
+  resume_from_checkpoint: /code/logs/runs/2021-08-13/01-55-09/checkpoints/last.ckpt
+  max_epochs: 100
+
+datamodule:
+  batch_size: 32
+
+callbacks:
+  log_confusion_matrix:
+    label_names: /code/data/label_names/map_1800_3.csv
+    plot_3d_points_every_n: false
+    semantic_key: 'semantic_3'
+  test_semseg_callback:
+    _target_: src.callbacks.metric_callbacks.TestingSemSeg
+    label_names: /code/data/label_names/map_1800_3.csv
+    semantic_key: 'semantic_3'
+    plot_3d_points_every_n: false
+  test_bottom_up_2:
+    _target_: src.callbacks.heirarchical_callbacks.BottomUpSemSeg
+    label_names: /code/data/label_names/map_1800_2.csv
+    semantic_key: 'semantic_2'
+    head_id: "up_lod_2"
+    plot_3d_points_every_n: false
+    project_to: 'lod_2'
+  test_bottom_up_1:
+    _target_: src.callbacks.heirarchical_callbacks.BottomUpSemSeg
+    label_names: /code/data/label_names/map_1800_1.csv
+    semantic_key: 'semantic_1'
+    head_id: "up_lod_1"
+    plot_3d_points_every_n: false
+    project_to: 'lod_1'
+
+model:
+  in_channels: 4
+  heads:
+    - num_classes: 79
+      loss_weight: 1.0
+      semantic_key: 'semantic_3'
+      weight_mode: 'median' # in ('min', 'mean', 'median', 'max')
+      class_weights_file: /code/data/weights/scannet_map_1800_3.npy
+
+transforms:
+  transforms:
+    - _target_: src.datamodules.transforms.ToTensor
+      expand_dims: false
+    - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
+      labels_mapping: map_1800_1
+      mapping_file: /code/data/mappings/all_mappings_v4.csv
+      mapped_key: "semantic_1"
+      labels_key: "mask"
+      map_bg_to_value: -1
+    - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
+      labels_mapping: map_1800_2
+      mapping_file: /code/data/mappings/all_mappings_v4.csv
+      mapped_key: "semantic_2"
+      labels_key: "mask"
+      map_bg_to_value: -1
+    - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
+      labels_mapping: map_1800_3
+      mapping_file: /code/data/mappings/all_mappings_v4.csv
+      mapped_key: "semantic_3"
+      labels_key: "mask"
+      map_bg_to_value: -1
+    - _target_: src.datamodules.transforms.PrepareSparseFeatures
+      keys_to_sparsify: [ 'semantic_1', 'semantic_2', 'semantic_3' ]
+      nnz_key: [ 'semantic_1', 'semantic_2', 'semantic_3' ]
+      add_color: true
+      bg_value: 0

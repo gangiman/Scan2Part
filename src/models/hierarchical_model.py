@@ -22,11 +22,13 @@ class RecursiveHeadLoss(nn.Module):
         semantic_key: str = 'semantic',
         f_maps: int = 32,
         lod: int = 1,
+        add_weights: bool = False,
         **kwargs
     ):
         super().__init__()
         self.node_name = name
         self.set_id = set_id
+        self.kwargs = kwargs
         self.sub_heads = nn.ModuleDict()
         if children is not None and children:
             num_classes = len(children)
@@ -35,7 +37,12 @@ class RecursiveHeadLoss(nn.Module):
                 self.lod = lod
                 self.semantic_key = f"{semantic_key}_{lod}"
                 self.final_layer = nn.Linear(f_maps, num_classes, bias=False)
-                self.criterion = nn.CrossEntropyLoss()
+                if add_weights:
+                    class_counts = torch.tensor([_c['count'] for _c in children])
+                    weights = class_counts.median() / class_counts.to(torch.float)
+                else:
+                    weights = None
+                self.criterion = nn.CrossEntropyLoss(weight=weights)
                 children_set_ids = torch.tensor([int(_child['set_id']) for _child in children])
                 label_mapping = torch.zeros(children_set_ids.max() + 1, dtype=torch.int64)
                 label_mapping[children_set_ids] = torch.arange(children_set_ids.shape[0])
@@ -45,7 +52,7 @@ class RecursiveHeadLoss(nn.Module):
                     if _child.get('children', False) and len(_child['children']) > 1:
                         self.sub_heads[f"{lod + 1}_{_child['set_id']}"] = RecursiveHeadLoss(
                             **_child, lod=lod+1, max_lod=max_lod,
-                            semantic_key=semantic_key, f_maps=f_maps)
+                            semantic_key=semantic_key, f_maps=f_maps, add_weights=add_weights)
         if len(self.sub_heads) == 0:
             self.sub_heads = None
 
@@ -98,7 +105,9 @@ class HierarchicalModel(Residual3DUnet):
             children=hierarchy_0k['ROOT'],
             f_maps=self.hparams.f_maps,
             max_lod=self.hparams.max_lod,
-            semantic_key=self.hparams.semantic_key)
+            semantic_key=self.hparams.semantic_key,
+            add_weights=self.hparams.add_weights
+        )
 
     def shared_step(self, batch):
         embedded, dict_of_lists = self.forward(batch)

@@ -16,23 +16,26 @@ defaults:
   - override /transforms: heirarchical_sparse.yaml
 
 model:
-  hierarchy_file: /code/data/mappings/hierarchy_lod_123.json
+  hierarchy_file: /code/data/mappings/h_reconstructed_lod_123.json
+  add_weights: true
 
 logger:
   wandb:
-    name: 'hierarchical_top_down_max_lod_3_filtered_with_test'
+    name: 'htd_reconstructed_testonly'
 
 callbacks:
   test_hierarchical_segmentation:
     _target_: src.callbacks.heirarchical_callbacks.LogHierarchicalTopDown
-    hierarchy_file: /code/data/mappings/hierarchy_lod_123.json
+    hierarchy_file: /code/data/mappings/h_reconstructed_lod_123.json
 
 trainer:
+  resume_from_checkpoint: /code/logs/runs/2021-08-18/11-53-55/checkpoints/last.ckpt
+  max_epochs: 100
   gpus: [1]
 
 datamodule:
   batch_size: 32
-  num_val_samples: 64
+  num_val_samples: 32
 
 transforms:
   transforms:
