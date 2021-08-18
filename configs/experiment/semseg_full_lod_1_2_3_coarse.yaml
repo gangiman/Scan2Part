@@ -13,7 +13,7 @@ defaults:
 
 logger:
   wandb:
-    name: 'semseg_lod_1_2_3_coarse_new_testonly'
+    name: 'semseg_lod_1_2_3_coarse_new_testonly_per_inst'
 
 datamodule:
   batch_size: 32
@@ -102,7 +102,7 @@ transforms:
       labels_key: "mask"
       map_bg_to_value: -1
     - _target_: src.datamodules.transforms.PrepareSparseFeatures
-      keys_to_sparsify: [ 'semantic_1', 'semantic_2', 'semantic_3' ]
+      keys_to_sparsify: [ 'semantic_1', 'semantic_2', 'semantic_3', 'object' ]
       nnz_key: [ 'semantic_1', 'semantic_2', 'semantic_3' ]
       add_color: true
       bg_value: 0

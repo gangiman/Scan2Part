@@ -13,7 +13,7 @@ defaults:
 
 logger:
   wandb:
-    name: 'semseg_lod_3_2cm_wc_new_testonly'
+    name: 'semseg_lod_3_2cm_wc_new_testonly_per_inst'
 
 trainer:
   resume_from_checkpoint: /code/logs/runs/2021-08-14/13-31-35/checkpoints/last.ckpt
@@ -46,7 +46,7 @@ transforms:
       labels_key: "mask"
       map_bg_to_value: -1
     - _target_: src.datamodules.transforms.PrepareSparseFeatures
-      keys_to_sparsify: [ 'semantic' ]
+      keys_to_sparsify: ['semantic', 'object']
       nnz_key: 'semantic'
       add_color: false
       bg_value: 0

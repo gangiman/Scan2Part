@@ -13,7 +13,7 @@ defaults:
 
 logger:
   wandb:
-    name: 'semseg_lod_1_new_testonly'
+    name: 'semseg_lod_1_new_testonly_per_inst'
 
 datamodule:
   batch_size: 32
@@ -22,5 +22,24 @@ trainer:
   resume_from_checkpoint: /code/logs/runs/2021-08-13/11-53-22/checkpoints/last.ckpt
   max_epochs: 100
 
+test_semseg_callback:
+  plot_3d_points_every_n: false
+
 model:
   in_channels: 4
+
+transforms:
+  transforms:
+    - _target_: src.datamodules.transforms.ToTensor
+      expand_dims: false
+    - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
+      labels_mapping: map_1800_1
+      mapping_file: /code/data/mappings/all_mappings_v4.csv
+      mapped_key: "semantic"
+      labels_key: "mask"
+      map_bg_to_value: -1
+    - _target_: src.datamodules.transforms.PrepareSparseFeatures
+      keys_to_sparsify: ['semantic', 'object']
+      nnz_key: 'semantic'
+      add_color: true
+      bg_value: 0

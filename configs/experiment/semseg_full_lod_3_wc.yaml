@@ -13,7 +13,7 @@ defaults:
 
 logger:
   wandb:
-    name: 'semseg_lod_3_wc_new_testonly'
+    name: 'semseg_lod_3_wc_new_testonly_per_inst'
 
 
 datamodule:
@@ -28,6 +28,7 @@ callbacks:
     label_names: /code/data/label_names/map_1800_3.csv
   test_semseg_callback:
     label_names: /code/data/label_names/map_1800_3.csv
+    plot_3d_points_every_n: false
 
 model:
   heads:
@@ -48,7 +49,7 @@ transforms:
       labels_key: "mask"
       map_bg_to_value: -1
     - _target_: src.datamodules.transforms.PrepareSparseFeatures
-      keys_to_sparsify: [ 'semantic' ]
+      keys_to_sparsify: [ 'semantic', 'object' ]
       nnz_key: 'semantic'
       add_color: false
       bg_value: 0

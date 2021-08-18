@@ -150,9 +150,16 @@ class LogConfusionMatrixAndMetrics(Callback):
         self.semantic_key = semantic_key
         self.preds = []
         self.targets = []
+        self.intance_targets = []
         self.coords = []
         self.ready = True
         self.experiment = None
+
+    def clear(self):
+        self.coords.clear()
+        self.preds.clear()
+        self.targets.clear()
+        self.intance_targets.clear()
 
     def on_sanity_check_start(self, trainer, pl_module) -> None:
         self.ready = False
@@ -173,6 +180,7 @@ class LogConfusionMatrixAndMetrics(Callback):
             ])
             self.preds.extend(outputs['head_logits'][self.head_id])
             self.targets.extend(outputs[self.semantic_key])
+            self.intance_targets.extend(outputs['object'])
 
     def on_validation_epoch_end(self, trainer, pl_module):
         """Generate confusion matrix."""
@@ -185,15 +193,14 @@ class LogConfusionMatrixAndMetrics(Callback):
             if len(preds.shape) > 1:
                 preds = np.argmax(preds, axis=1)
             label_ids = list(range(len(self.label_names)))
+            self.compute_part_instance_mIoU(label_ids)
             self.plot_confusion_matrix(targets, preds, label_ids)
             self.plot_pr_f1(targets, preds, label_ids)
             for _i, (_coord, _target, _pred) in enumerate(zip(self.coords, self.targets, self.preds)):
                 if self.plot_3d_points_every_n and (_i % self.plot_3d_points_every_n == 0):
                     html = plot_3d_voxels_as_k3d_html(_coord, _pred)
                     self.experiment.log({f"val/head_{self.head_id}/k3d_voxels_{_i}": wandb.Html(html)})
-            self.coords.clear()
-            self.preds.clear()
-            self.targets.clear()
+            self.clear()
 
     def plot_confusion_matrix(self, targets, preds, label_ids, mode='val'):
         confusion_matrix = metrics.confusion_matrix(
@@ -219,6 +226,21 @@ class LogConfusionMatrixAndMetrics(Callback):
         # experiment.log(f{"confusion_matrix/{experiment.name}": plt})
         # reset plot
         plt.clf()
+
+    def compute_part_instance_mIoU(self, label_ids, mode='val'):
+        """Generate f1, precision and recall heatmap."""
+        data = []
+        for _instance, _logits, _target in zip(self.intance_targets, self.preds, self.targets):
+            for _inst_id in _instance.unique():
+                mask = _instance == _inst_id
+                preds = _logits[mask].cpu().numpy()
+                preds = np.argmax(preds, axis=1)
+                targets = _target[mask].cpu().numpy()
+                iou = jaccard_score(preds, targets, labels=label_ids, average='micro')
+                data.append(iou)
+        self.experiment.log({
+            f'{mode}/head_{self.head_id}/instance_avg_mIoU': np.mean(data),
+        }, commit=False)
 
     def plot_pr_f1(self, targets, preds, label_ids, mode='val'):
         """Generate f1, precision and recall heatmap."""
@@ -255,28 +277,21 @@ class LogConfusionMatrixAndMetrics(Callback):
 
 
 class TestingSemSeg(LogConfusionMatrixAndMetrics):
-    def on_test_batch_end(
-            self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx
-    ):
-        if self.ready:
-            batch_coords = batch[0]
-            self.coords.extend([
-                batch_coords[batch_coords[:, 0] == _i, 1:]
-                for _i in range(batch_coords[:, 0].max() + 1)
-            ])
-            self.preds.extend(outputs['head_logits'][self.head_id])
-            self.targets.extend(outputs[self.semantic_key])
+    def on_test_batch_end(self, *args):
+        self.on_validation_batch_end(*args)
 
     def on_test_epoch_end(self, trainer, pl_module):
         """Generate confusion matrix."""
         if self.ready:
             logger = get_wandb_logger(trainer)
             self.experiment = logger.experiment
+
             preds = torch.cat(self.preds).cpu().numpy()
             targets = torch.cat(self.targets).cpu().numpy()
             if len(preds.shape) > 1:
                 preds = np.argmax(preds, axis=1)
             label_ids = list(range(len(self.label_names)))
+            self.compute_part_instance_mIoU(label_ids, mode='test')
             self.plot_confusion_matrix(targets, preds, label_ids, mode='test')
             self.plot_pr_f1(targets, preds, label_ids, mode='test')
             for _i, (_coord, _target, _pred) in tqdm(enumerate(zip(self.coords, self.targets, self.preds)),
@@ -284,6 +299,4 @@ class TestingSemSeg(LogConfusionMatrixAndMetrics):
                 if _coord.any() and self.plot_3d_points_every_n and (_i % self.plot_3d_points_every_n == 0):
                     html = plot_3d_voxels_as_k3d_html(_coord, _pred)
                     self.experiment.log({f"test/head_{self.head_id}/k3d_voxels_{_i}": wandb.Html(html)})
-            self.coords.clear()
-            self.preds.clear()
-            self.targets.clear()
+            self.clear()
