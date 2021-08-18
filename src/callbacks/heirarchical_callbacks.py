@@ -37,8 +37,8 @@ class LogHierarchicalTopDown(Callback):
 
     def _get_label_names(
             self,
-            name=None, set_id=None, children=None, lod=1):
-        if children is not None and children:
+            name=None, set_id=None, children=None, lod=1, **kwargs):
+        if children is not None and children and len(children) > 1:
             children = sorted(children, key=lambda x: int(x['set_id']))
             self.label_names[f"{lod}_{set_id}"] = [self._get_label_names(**_node, lod=1 + lod) for _node in children]
         return name
@@ -62,10 +62,10 @@ class LogHierarchicalTopDown(Callback):
         if self.ready:
             logger = get_wandb_logger(trainer)
             self.experiment = logger.experiment
-            for _head_hash, _list_of_preds in self.preds:
+            for _head_hash, _list_of_preds in self.preds.items():
                 logits, norm_targets, targets = list(zip(*_list_of_preds))
-                preds = torch.cat(logits).cpu().numpy()
-                targets = torch.cat(norm_targets).cpu().numpy()
+                preds = torch.cat(sum(logits, [])).cpu().numpy()
+                targets = torch.cat(sum(norm_targets, [])).cpu().numpy()
                 if len(preds.shape) > 1:
                     preds = np.argmax(preds, axis=1)
                 label_names = self.label_names[_head_hash]

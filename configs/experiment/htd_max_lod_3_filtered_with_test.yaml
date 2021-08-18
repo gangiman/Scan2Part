@@ -1,0 +1,63 @@
+# @package _global_
+
+# to execute this experiment run:
+# python run.py experiment=hierarchical_top_down_max_lod_3.yaml
+
+# select_nodes: [[1, None], [2, 7], [2, 10], [2, 2], [2, 21], [2, 28], [2, 3], [2, 110], [2, 5], [2, 6], [2, 1], [2, 8], [2, 15], [2, 31], [2, 48]]
+#selected_lods: [1, 2, 3] #, 4, 5, 6, 7, 8]
+
+
+defaults:
+  - override /trainer: ddp.yaml # choose trainer from 'configs/trainer/'
+  - override /model: heirarchical_segmentation_model.yaml
+  - override /datamodule: scannet_dm_sparse.yaml
+  - override /callbacks: default.yaml
+  - override /logger: wandb.yaml
+  - override /transforms: heirarchical_sparse.yaml
+
+model:
+  hierarchy_file: /code/data/mappings/hierarchy_lod_123.json
+
+logger:
+  wandb:
+    name: 'hierarchical_top_down_max_lod_3_filtered_with_test'
+
+callbacks:
+  test_hierarchical_segmentation:
+    _target_: src.callbacks.heirarchical_callbacks.LogHierarchicalTopDown
+    hierarchy_file: /code/data/mappings/hierarchy_lod_123.json
+
+trainer:
+  gpus: [1]
+
+datamodule:
+  batch_size: 32
+  num_val_samples: 64
+
+transforms:
+  transforms:
+    - _target_: src.datamodules.transforms.ToTensor
+      expand_dims: false
+    - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
+      labels_mapping: map_1800_1
+      mapping_file: /code/data/mappings/all_mappings_v4.csv
+      mapped_key: "semantic_1"
+      labels_key: "mask"
+      normalize_labels: false
+    - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
+      labels_mapping: map_1800_2
+      mapping_file: /code/data/mappings/all_mappings_v4.csv
+      mapped_key: "semantic_2"
+      labels_key: "mask"
+      normalize_labels: false
+    - _target_: src.datamodules.transforms.MapInstancesToSemanticLabels
+      labels_mapping: map_1800_3
+      mapping_file: /code/data/mappings/all_mappings_v4.csv
+      mapped_key: "semantic_3"
+      labels_key: "mask"
+      normalize_labels: false
+    - _target_: src.datamodules.transforms.PrepareSparseFeatures
+      keys_to_sparsify: ['semantic_1', 'semantic_2', 'semantic_3']
+      nnz_key: ['semantic_1', 'semantic_2', 'semantic_3']
+      add_color: false
+      bg_value: 0

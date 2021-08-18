@@ -26,6 +26,7 @@ callbacks:
     hierarchy_file: /code/data/mappings/hierarchy_0k.json
 
 trainer:
+  resume_from_checkpoint: /code/logs/runs/2021-08-17/16-02-40/checkpoints/last.ckpt
   gpus: [1]
 
 datamodule:

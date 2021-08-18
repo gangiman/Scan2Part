@@ -72,11 +72,13 @@ class RecursiveHeadLoss(nn.Module):
                 set_id = int(_sub_head.set_id)
                 for _idx, _target in enumerate(target):
                     if set_id in _target:
-                        features_subset.append(features[_idx])
                         # masking by gt give to sub_level
-                        masks_subset.append(masks[_idx] & (set_id == _target))
-                        for _key, _targets in batch.items():
-                            targets_subset[_key].append(_targets[_idx])
+                        new_mask = masks[_idx] & (set_id == _target)
+                        if new_mask.any():
+                            masks_subset.append(new_mask)
+                            features_subset.append(features[_idx])
+                            for _key, _targets in batch.items():
+                                targets_subset[_key].append(_targets[_idx])
                 if features_subset:
                     sub_head_loss, sub_logits = _sub_head(features_subset, targets_subset, masks_subset)
                     loss += sub_head_loss
