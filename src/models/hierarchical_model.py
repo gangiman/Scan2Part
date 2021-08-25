@@ -56,6 +56,17 @@ class RecursiveHeadLoss(nn.Module):
         if len(self.sub_heads) == 0:
             self.sub_heads = None
 
+    def predict(self, features: List[torch.Tensor]):
+        logits = [self.final_layer(_features) for _features in features]
+        children = []
+        full_logits = {f"{self.lod}_{self.set_id}": (logits, self.node_name, children)}
+        if self.sub_heads is not None:
+            for _k, _sub_head in self.sub_heads.items():
+                children.append((_k, _sub_head.node_name))
+                sub_logits = _sub_head.predict(features)
+                full_logits.update(sub_logits)
+        return full_logits
+
     def forward(self,
                 features: List[torch.Tensor],
                 batch: Dict[str, List[torch.Tensor]],
@@ -113,6 +124,10 @@ class HierarchicalModel(Residual3DUnet):
         embedded, dict_of_lists = self.forward(batch)
         loss, logits = self.recursive_heads(embedded, dict_of_lists)
         return loss, logits, dict_of_lists
+
+    def predict_step(self, batch, batch_idx, dataloader_idx=None):
+        embedded, dict_of_lists = self.forward(batch)
+        return self.recursive_heads.predict(embedded)
 
     def training_step(self, batch, batch_idx):
         loss, *_ = self.shared_step(batch)
